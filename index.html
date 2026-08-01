@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CINDERFALL — a world that refuses to sit still</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ================= TOP BAR ================= -->
+  <header id="topbar">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div class="brand-text">
+        <h1>CINDERFALL</h1>
+        <span>a world that refuses to sit still</span>
+      </div>
+    </div>
+
+    <div class="clock">
+      <div class="clock-turn"><em id="hud-turn">1</em><span>/ 25 turns</span></div>
+      <div class="clock-season">SEASON <b id="hud-season">0</b></div>
+    </div>
+
+    <div class="scores">
+      <div class="score side-a">
+        <div class="score-head"><i></i><span>ASHFARERS</span><b id="hud-a-land">0</b><small>land</small></div>
+        <div class="bp-track" title="Beacon Points — 10 to win">
+          <div class="bp-fill" id="hud-a-bp"></div>
+          <span class="bp-label" id="hud-a-bplabel">0 / 10</span>
+        </div>
+      </div>
+      <div class="score side-b">
+        <div class="score-head"><i></i><span>SALTKIN</span><b id="hud-b-land">0</b><small>land</small></div>
+        <div class="bp-track" title="Beacon Points — 10 to win">
+          <div class="bp-fill" id="hud-b-bp"></div>
+          <span class="bp-label" id="hud-b-bplabel">0 / 10</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= MAIN ================= -->
+  <main id="stage">
+
+    <section id="board-col">
+
+      <div id="warnbar" class="hidden">
+        <div class="warn-icon">▲</div>
+        <div class="warn-body">
+          <div class="warn-title" id="warn-title">THE MOUNTAIN IS SHAKING</div>
+          <div class="warn-sub" id="warn-sub">Somewhere in the north.</div>
+        </div>
+        <div class="warn-count" id="warn-count">next turn</div>
+      </div>
+
+      <div id="canvas-wrap">
+        <canvas id="map"></canvas>
+        <div id="tooltip" class="hidden"></div>
+        <div id="banner" class="hidden"><div class="banner-in"><h2 id="banner-title"></h2><p id="banner-sub"></p></div></div>
+        <div id="gameover" class="hidden"><div class="go-in"><h2 id="go-title"></h2><p id="go-sub"></p><button id="go-again" class="btn primary">NEW RING</button></div></div>
+      </div>
+
+      <div id="feed"></div>
+
+    </section>
+
+    <aside id="rail">
+
+      <nav class="tabs">
+        <button class="tab active" data-tab="orders">ORDERS</button>
+        <button class="tab" data-tab="chronicle">CHRONICLE</button>
+        <button class="tab" data-tab="console">CINDER</button>
+      </nav>
+
+      <!-- ---------- ORDERS ---------- -->
+      <div class="panel active" id="tab-orders">
+        <div class="treasury">
+          <div class="tre-row">
+            <span>INCOME</span>
+            <b id="hud-income">0</b>
+          </div>
+          <div class="spend-track"><div class="spend-fill" id="hud-spendfill"></div></div>
+          <div class="tre-row small">
+            <span>spent <b id="hud-spent">0</b></span>
+            <span>left <b id="hud-left">0</b></span>
+          </div>
+        </div>
+
+        <div class="tools">
+          <button class="tool active" data-tool="expand">
+            <kbd>1</kbd><span class="tname">EXPAND</span><span class="tcost" id="cost-expand">2</span>
+            <em>claim empty land beside you</em>
+          </button>
+          <button class="tool" data-tool="fortify">
+            <kbd>2</kbd><span class="tname">FORTIFY</span><span class="tcost" id="cost-fortify">1</span>
+            <em>+2 strength on a square you hold</em>
+          </button>
+          <button class="tool" data-tool="raid">
+            <kbd>3</kbd><span class="tname">RAID</span><span class="tcost" id="cost-raid">3</span>
+            <em>strike an enemy square beside you</em>
+          </button>
+        </div>
+
+        <div class="orders-head"><span>QUEUED</span><button id="btn-clear" class="mini">clear</button></div>
+        <ul id="orderlist"></ul>
+
+        <div class="mods" id="modlist"></div>
+
+        <button id="btn-end" class="btn primary big">END TURN <kbd>⏎</kbd></button>
+      </div>
+
+      <!-- ---------- CHRONICLE ---------- -->
+      <div class="panel" id="tab-chronicle">
+        <p class="panel-note">Every season the mountain acts, and every season it says why. Predictions are scored against what actually happened.</p>
+        <div id="chronicle"></div>
+      </div>
+
+      <!-- ---------- CONSOLE ---------- -->
+      <div class="panel" id="tab-console">
+        <p class="panel-note">Designer console. Cinder proposes — plain code approves — a human can override.</p>
+
+        <div class="con-block">
+          <div class="con-title">CURRENT READING</div>
+          <pre id="con-report">Cinder is asleep. It wakes at the end of turn 3.</pre>
+        </div>
+
+        <div class="con-block">
+          <div class="con-title">REASONING</div>
+          <div id="con-reason" class="reason">—</div>
+        </div>
+
+        <div class="con-block">
+          <div class="con-title">PENDING EVENT</div>
+          <div id="con-pending" class="pending">none</div>
+          <div class="con-row">
+            <select id="con-override"></select>
+            <select id="con-intensity">
+              <option value="1">I</option><option value="2" selected>II</option><option value="3">III</option>
+            </select>
+            <button id="con-apply" class="mini solid">OVERRIDE</button>
+          </div>
+        </div>
+
+        <div class="con-block">
+          <div class="con-title">CONTROLS</div>
+          <label class="chk"><input type="checkbox" id="con-pause"> pause the director</label>
+          <label class="chk"><input type="checkbox" id="con-turtle"> force stalemate <em>(both sides turtle)</em></label>
+          <div class="con-row">
+            <button id="con-fire" class="mini">fire now</button>
+            <button id="con-new" class="mini">new ring</button>
+          </div>
+        </div>
+
+        <div class="con-block">
+          <div class="con-title">TEMPLATE MEMORY</div>
+          <div id="con-memory" class="memory">no history yet</div>
+        </div>
+      </div>
+
+    </aside>
+  </main>
+</div>
+
+<script src="js/util.js"></script>
+<script src="js/mapgen.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/events.js"></script>
+<script src="js/validator.js"></script>
+<script src="js/bot.js"></script>
+<script src="js/director.js"></script>
+<script src="js/render.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
