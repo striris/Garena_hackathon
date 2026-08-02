@@ -183,61 +183,113 @@ CF.engine = (function () {
 
     var all = accepted[1].concat(accepted[2]);
 
-    // --- 1. raids, resolved against a frozen snapshot of strengths --------
+    // --- 1. raids ----------------------------------------------------------
+    // Every raid is judged against one frozen snapshot of the board and only
+    // then applied. Resolving them one at a time looks equivalent and is not:
+    // an earlier version walked targets in index order, so the side whose
+    // territory sat at low indices always had its losses applied first and
+    // could invalidate the other side's attacks. That handed the Saltkin
+    // three matches in four. Simultaneous has to mean simultaneous.
     var snapStr = s.tiles.map(function (t) { return t.str; });
-    var raids = all.filter(function (o) { return o.type === 'raid'; })
-                   .sort(function (a, b) { return a.to - b.to || a.from - b.from; });
+    var snapOwner = s.tiles.map(function (t) { return t.owner; });
+    var raids = all.filter(function (o) { return o.type === 'raid'; });
 
     var raidCounts = { 1: 0, 2: 0 }, captures = { 1: 0, 2: 0 };
+    var byTarget = {};
 
     raids.forEach(function (o) {
-      var src = s.tiles[o.from], dst = s.tiles[o.to];
-      if (src.owner !== o.side || !src.land) return;   // source lost mid-turn
-      if (!dst.land || dst.owner === o.side) return;   // target already ours
-
+      if (snapOwner[o.from] !== o.side) return;
+      if (!s.tiles[o.to].land || snapOwner[o.to] === o.side) return;
       raidCounts[o.side]++;
-      var atk = snapStr[o.from] + 3 + stormSwing(s, o.side);
-      var def = dst.str + (s.mods.rockCooled > 0 ? 0 : dst.elev);
+      (byTarget[o.to] || (byTarget[o.to] = [])).push(o);
+    });
 
-      if (atk > def) {
-        var wasCapital = dst.capital;
-        var loser = dst.owner;
-        dst.owner = o.side;
-        dst.str = 1;
-        src.str = Math.max(0, src.str - 2);
-        captures[o.side]++;
-        fx.push({ kind: 'capture', at: o.to, from: o.from, side: o.side });
-        line.push({ side: o.side, cls: side2cls(o.side),
-          text: SIDE[o.side] + ' take ' + coord(s, o.to) + (loser ? ' from the ' + SIDE[loser] : '') + '.' });
-        if (wasCapital) {
-          dst.capital = 0;
-          s.over = { winner: o.side, why: 'The ' + SIDE[loser] + ' capital has fallen.' };
-        }
+    var strDelta = {};                       // applied only after every fight
+    function hit(i, d) { strDelta[i] = (strDelta[i] || 0) + d; }
+    var flips = [];
+
+    Object.keys(byTarget).forEach(function (key) {
+      var target = +key, group = byTarget[key];
+      var dst = s.tiles[target];
+      var def = snapStr[target] + (s.mods.rockCooled > 0 ? 0 : dst.elev);
+
+      // where several attacks land on one square, the heaviest decides it
+      var best = null, bestAtk = -Infinity;
+      group.forEach(function (o) {
+        var atk = snapStr[o.from] + 3 + stormSwing(s, o.side);
+        if (atk > bestAtk || (atk === bestAtk && best && o.from < best.from)) { bestAtk = atk; best = o; }
+      });
+
+      if (bestAtk > def) {
+        flips.push({ at: target, side: best.side, from: best.from, loser: snapOwner[target] });
+        hit(best.from, -2);
       } else {
-        dst.str = Math.max(0, dst.str - 1);
-        src.str = Math.max(0, src.str);
-        fx.push({ kind: 'repel', at: o.to, from: o.from, side: o.side });
-        line.push({ side: o.side, cls: side2cls(o.side),
-          text: SIDE[o.side] + ' break on ' + coord(s, o.to) + ' (' + atk + ' vs ' + def + ').' });
+        hit(target, -1);
+        group.forEach(function (o) {
+          fx.push({ kind: 'repel', at: target, from: o.from, side: o.side });
+        });
+        line.push({ cls: side2cls(best.side),
+          text: SIDE[best.side] + ' break on ' + coord(s, target) + ' (' + bestAtk + ' vs ' + def + ').' });
       }
     });
 
-    // --- 2. expansion. Two peoples reaching for the same empty square -----
-    //     both bounce off it, and the land stays empty. Nobody gets it.
+    Object.keys(strDelta).forEach(function (k) {
+      var t = s.tiles[+k];
+      t.str = Math.max(0, t.str + strDelta[k]);
+    });
+
+    flips.forEach(function (f) {
+      var dst = s.tiles[f.at];
+      var wasCapital = dst.capital;
+      dst.owner = f.side;
+      dst.str = 1;
+      captures[f.side]++;
+      fx.push({ kind: 'capture', at: f.at, from: f.from, side: f.side });
+      line.push({ cls: side2cls(f.side),
+        text: SIDE[f.side] + ' take ' + coord(s, f.at) + (f.loser ? ' from the ' + SIDE[f.loser] : '') + '.' });
+      if (wasCapital) {
+        dst.capital = 0;
+        s.over = { winner: f.side, why: 'The ' + SIDE[f.loser] + ' capital has fallen.' };
+      }
+    });
+
+    // --- 2. expansion ------------------------------------------------------
+    // When both peoples reach for the same empty square, the one who brought
+    // more people to its edge holds it. An earlier version had them bounce
+    // off each other and leave the land empty, which reads well but deadlocks:
+    // on a ring the two chokepoints are one square wide, so both sides would
+    // reach for the same square every turn forever and never once touch.
     var expands = all.filter(function (o) { return o.type === 'expand'; });
     var claimBy = {};
     expands.forEach(function (o) {
       if (!(o.to in claimBy)) claimBy[o.to] = o.side;
-      else if (claimBy[o.to] !== o.side) claimBy[o.to] = 0;
+      else if (claimBy[o.to] !== o.side) claimBy[o.to] = -1;   // contested
     });
     Object.keys(claimBy).forEach(function (key) {
       var i = +key, side = claimBy[key], t = s.tiles[i];
       if (!t.land || t.owner !== 0) return;
-      if (side === 0) {
+
+      if (side === -1) {
+        var weight = { 1: 0, 2: 0 };
+        var ns = neighbors(s, i);
+        for (var q = 0; q < ns.length; q++) {
+          var nt = s.tiles[ns[q]];
+          if (nt.land && (nt.owner === 1 || nt.owner === 2)) weight[nt.owner] += nt.str;
+        }
+        if (weight[1] === weight[2]) {
+          // dead level: the square goes to whoever holds less of the ring,
+          // so a contested chokepoint never freezes the map. If even that
+          // ties, alternate by turn rather than always favouring one people.
+          var la = landCount(s, 1), lb = landCount(s, 2);
+          side = la === lb ? (s.turn % 2 ? 1 : 2) : (la < lb ? 1 : 2);
+        } else {
+          side = weight[1] > weight[2] ? 1 : 2;
+        }
         fx.push({ kind: 'clash', at: i });
-        line.push({ cls: '', text: 'Both peoples reach ' + coord(s, i) + '. Neither settles it.' });
-        return;
+        line.push({ cls: side2cls(side), text: 'Both peoples reach ' + coord(s, i) +
+          '. The ' + SIDE[side] + ' brought more and hold it.' });
       }
+
       t.owner = side; t.str = 1;
       fx.push({ kind: 'settle', at: i, side: side });
     });

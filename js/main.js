@@ -21,6 +21,65 @@
     R.init($('map'));
     newGame((Math.random() * 1e9) | 0);
     bindUI();
+    bindIntro();
+  }
+
+  // ---------------------------------------------------------- the cold open
+  // The ring is already turning behind the text, so the player sees the
+  // argument of the game before reading a word of it.
+  function bindIntro() {
+    var el = $('intro');
+    if (!el) return;
+    var slide = 0;
+    var LABELS = ['THE WORLD <kbd>→</kbd>', 'HOW TO PLAY <kbd>→</kbd>', 'TAKE THE RING <kbd>⏎</kbd>'];
+
+    CF.intro.init($('introcanvas'));
+    CF.intro.start();
+
+    function go(n) {
+      slide = U.clamp(n, 0, 2);
+      [].forEach.call(el.querySelectorAll('.slide'), function (s) {
+        s.classList.toggle('active', +s.dataset.slide === slide);
+      });
+      [].forEach.call(el.querySelectorAll('.dot-nav'), function (d, i) {
+        d.classList.toggle('active', i === slide);
+      });
+      $('intro-next').innerHTML = LABELS[slide];
+    }
+
+    function dismiss() {
+      if (el.classList.contains('leaving')) return;
+      el.classList.add('leaving');
+      setTimeout(function () {
+        el.remove();
+        CF.intro.stop();
+        R.resize();
+      }, 550);
+      document.removeEventListener('keydown', keys, true);
+    }
+
+    function keys(e) {
+      // swallow everything: 1/2/3 and Enter must not reach the map below
+      e.stopPropagation();
+      if (e.key === 'Escape') { e.preventDefault(); dismiss(); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); go(slide + 1); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); go(slide - 1); }
+      else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        if (slide >= 2) dismiss(); else go(slide + 1);
+      }
+    }
+
+    $('intro-next').onclick = function () { if (slide >= 2) dismiss(); else go(slide + 1); };
+    $('intro-skip').onclick = dismiss;
+    [].forEach.call(el.querySelectorAll('.dot-nav'), function (d) {
+      d.onclick = function () { go(+d.dataset.go); };
+    });
+
+    // the intro owns the keyboard until it is gone, so 1/2/3 and Enter
+    // cannot leak through to the map underneath
+    document.addEventListener('keydown', keys, true);
+    go(0);
   }
 
   function newGame(seed) {
@@ -33,6 +92,7 @@
     say('world', 'A ring of islands, and a mountain under them that has never once sat still.');
     say('', 'The Ashfarers hold the west. The Saltkin hold the east. Cinder wakes at the end of turn 3.');
     setTool('expand');
+    renderFeed();
     refresh();
   }
 

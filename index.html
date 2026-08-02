@@ -165,7 +165,127 @@
   </main>
 </div>
 
+<!-- ================= COLD OPEN ================= -->
+<div id="intro">
+  <canvas id="introcanvas"></canvas>
+
+  <button id="intro-skip" class="skip">SKIP <kbd>ESC</kbd></button>
+
+  <div class="intro-stage">
+
+    <!-- 1. the world, mostly seen rather than read -->
+    <section class="slide active" data-slide="0">
+      <div class="hero">
+        <div class="hero-kicker">GARENA AI BUILD CHALLENGE · 2026</div>
+        <h1 class="hero-title">CINDERFALL</h1>
+        <div class="hero-rule"></div>
+        <p class="hero-line">A world that refuses to sit still.</p>
+        <p class="hero-sub">
+          Two peoples fight over a ring of islands.<br>
+          Underneath them, the mountain that made those islands is still working —
+          and what it cannot stand is a quiet map.
+        </p>
+        <div class="hero-legend">
+          <span><i class="dot jade"></i>ASHFARERS · you</span>
+          <span><i class="dot molten"></i>SALTKIN · the rival</span>
+          <span><i class="dot fire"></i>CINDER · the world itself</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. the story -->
+    <section class="slide" data-slide="1">
+      <div class="sheet">
+        <div class="sheet-kicker">THE WORLD</div>
+        <h2>A mountain that makes land, and takes it back</h2>
+        <div class="cols">
+          <div>
+            <p>Far out in a warm sea there is a ring of islands. They were not always there. They were made, one by one, by a mountain that still lives under the water. The people who live there call it <b>Cinder</b>.</p>
+            <p>Cinder is still working. It pushes new islands up out of the sea. It pulls old ones back down. Ash from its mouth falls on the water and turns to the richest soil anyone has ever farmed. Land here is young, and it is generous, and <b>it does not stay</b>.</p>
+          </div>
+          <div>
+            <p>Two peoples share the ring. The <b class="c-jade">Ashfarers</b> came first and learned to farm the ash fields. The <b class="c-molten">Saltkin</b> came later, by sea, and took the high ground. Neither of them is evil. The problem is simpler than that: there is not enough steady ground for both, and every season there is less.</p>
+            <p class="pull">Cinder does not care who wins. What Cinder cannot stand is stillness — a quiet sea, a settled border, two peoples who have stopped moving. So when the fighting stops, the mountain does something about it.</p>
+          </div>
+        </div>
+        <div class="beacon-note">
+          <div class="bn-star">★</div>
+          <div>
+            <b>THE BEACON.</b> Somewhere on the ring a fire burns on a stone tower. Nobody lit it. Holding it means good harvests and a claim to the ring — but the Beacon is Cinder's, and Cinder moves it. Settle into a quiet stalemate and one night the fire goes out and relights in open ground, exactly between you. That is how the mountain starts a war without touching anybody.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. how to play -->
+    <section class="slide" data-slide="2">
+      <div class="sheet">
+        <div class="sheet-kicker">HOW TO PLAY</div>
+        <h2>Six numbers a square, and one comparison</h2>
+
+        <div class="rulegrid">
+
+          <div class="rule">
+            <div class="rule-h"><span class="rn">1</span>SPEND YOUR INCOME</div>
+            <p>Each turn you earn the <b>fertility</b> of every square you hold and can still reach. Spend it all — nothing carries over.</p>
+            <ul class="orders">
+              <li class="o-expand"><b>EXPAND</b><em>claim empty land next to yours, at strength 1</em><span>2</span></li>
+              <li class="o-fortify"><b>FORTIFY</b><em>add 2 strength to a square you hold</em><span>1</span></li>
+              <li class="o-raid"><b>RAID</b><em>attack an enemy square next to yours</em><span>3</span></li>
+            </ul>
+          </div>
+
+          <div class="rule">
+            <div class="rule-h"><span class="rn">2</span>COMBAT IS ONE COMPARISON</div>
+            <div class="eq">
+              <div><span class="lbl">ATTACK</span><span>strength of the square you attack from <b>+&nbsp;3</b></span></div>
+              <div><span class="lbl">DEFENCE</span><span>strength of the target <b>+&nbsp;its height</b></span></div>
+            </div>
+            <p>Higher attack takes the square at strength 1, and the attacking square loses 2. Otherwise the attack fails and the defender loses 1.</p>
+            <p class="quiet">No dice, no unit types. All of the surprise in this game comes from the mountain, not from luck here.</p>
+          </div>
+
+          <div class="rule">
+            <div class="rule-h"><span class="rn">3</span>SUPPLY</div>
+            <p>A square only counts if you can trace a path of <b>your own land</b> back to your capital. Cut-off squares earn nothing and lose 1 strength a turn until they are empty.</p>
+            <p class="quiet">Which is why splitting a territory in half hurts more than destroying part of it.</p>
+          </div>
+
+          <div class="rule accent">
+            <div class="rule-h"><span class="rn">4</span>THE MOUNTAIN ACTS</div>
+            <p>Every <b>3 turns</b> Cinder reads the match and does one thing to the world: an eruption, a sinking coast, a new island, the fire moving, the high ground going cold.</p>
+            <p>It always <b>warns you one turn early</b>, and it always says what you did to deserve it. You are never surprised by a disaster you had no chance to prepare for.</p>
+          </div>
+
+          <div class="rule win">
+            <div class="rule-h"><span class="rn">5</span>WINNING</div>
+            <p>Reach <b>10 Beacon Points</b> — one for each turn you end holding the Beacon — or hold the most land after <b>25 turns</b>.</p>
+          </div>
+
+          <div class="rule">
+            <div class="rule-h"><span class="rn">6</span>CONTROLS</div>
+            <p>Pick a tool with <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd>, then click the map. Click a queued order to remove it, or right-click the square. <kbd>⏎</kbd> ends the turn.</p>
+            <p class="quiet">Both sides give orders at the same time, in secret, and everything resolves together.</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <nav class="intro-nav">
+      <div class="dots">
+        <i class="dot-nav active" data-go="0"></i>
+        <i class="dot-nav" data-go="1"></i>
+        <i class="dot-nav" data-go="2"></i>
+      </div>
+      <button id="intro-next" class="btn primary big">THE WORLD <kbd>→</kbd></button>
+    </nav>
+
+  </div>
+</div>
+
 <script src="js/util.js"></script>
+<script src="js/intro.js"></script>
 <script src="js/mapgen.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/events.js"></script>

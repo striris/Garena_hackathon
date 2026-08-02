@@ -13,8 +13,31 @@ CF.validator = (function () {
     'no side may be pushed below 3 squares',
     'the same side cannot be the main target three seasons running',
     'the same template cannot run twice in a row',
-    'a capital can never be destroyed'
+    'a capital can never be destroyed',
+    'no event may cut the ring in two'
   ];
+
+  // The sixth rule is not in the original spec, and it was added because
+  // playtesting found the failure: on a ring the two peoples meet at two
+  // narrow arcs, and one eruption across the wrong square walls them apart
+  // for the rest of the match. A mountain that wants a fight must never
+  // make fighting impossible.
+  function ringIsWhole(state) {
+    var a = state.capitals[1], b = state.capitals[2];
+    if (a == null || b == null) return true;
+    var seen = {}, stack = [a];
+    seen[a] = 1;
+    while (stack.length) {
+      var i = stack.pop();
+      if (i === b) return true;
+      var ns = E.neighbors(state, i);
+      for (var k = 0; k < ns.length; k++) {
+        var n = ns[k];
+        if (!seen[n] && state.tiles[n].land) { seen[n] = 1; stack.push(n); }
+      }
+    }
+    return false;
+  }
 
   // Simulate the proposal and look at the wreckage before allowing it.
   function check(state, ev) {
@@ -43,6 +66,9 @@ CF.validator = (function () {
       var t = sim.state.tiles[cap];
       if (!t || !t.land) fails.push('it destroys the ' + E.SIDE[side] + ' capital');
     });
+
+    if (ringIsWhole(state) && !ringIsWhole(sim.state))
+      fails.push('it cuts the ring in two and the peoples could never reach each other again');
 
     // don't let the mountain look like it has picked a side
     var mainTarget = worstHit(before, after);

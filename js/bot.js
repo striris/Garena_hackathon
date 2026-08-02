@@ -41,18 +41,22 @@ CF.bot = (function () {
   }
 
   var WEIGHTS = {
-    aggressive: { expand: 0.8, fortify: 0.5, raid: 1.6 },
-    greedy:     { expand: 1.7, fortify: 0.6, raid: 0.7 },
-    turtle:     { expand: 0.5, fortify: 1.8, raid: 0.15 }
+    //                                         siege: massing on a frontier
+    //                                         square to make a raid possible
+    aggressive: { expand: 0.8, fortify: 0.5, raid: 1.6, siege: 1.5 },
+    greedy:     { expand: 1.7, fortify: 0.6, raid: 0.7, siege: 0.5 },
+    turtle:     { expand: 0.5, fortify: 1.8, raid: 0.15, siege: 0.7 }
   };
 
   // The Ashfarers came first and learned to farm the ash fields. The
   // Saltkin came later, by sea, and took the high ground. Two peoples
   // who want different squares is the whole reason there is a war, and
   // it is also what stops a mirrored ring from playing itself to a draw.
+  // Kept close in total value: height is worth more than soil in a fight,
+  // so the Saltkin preference is the milder one or they simply win.
   var TASTE = {
-    1: { soil: 3.9, height: 0.5 },
-    2: { soil: 2.3, height: 2.0 }
+    1: { soil: 3.4, height: 0.8 },
+    2: { soil: 2.7, height: 1.5 }
   };
 
   function plan(state, side, forceTurtle) {
@@ -105,21 +109,31 @@ CF.bot = (function () {
           });
         }
 
-        // --- raid -------------------------------------------------------
-        if ((t.owner === foe || t.owner === 3) && !seenRaid[i]) {
-          seenRaid[i] = 1;
-          var src = E.canRaid(state, side, i);
-          if (src == null) continue;
-          var atk = E.attackValue(state, src, side);
+        // --- raid, or the build-up toward one ---------------------------
+        if (t.owner === foe || t.owner === 3) {
           var def = E.defenceValue(state, i);
-          var margin = atk - def;
-          if (margin <= 0) continue;                      // never throw squares away
-          cands.push({
-            type: 'raid', to: i,
-            score: (7 + margin * 1.5 + t.fert * taste.soil * 0.6 + t.elev * taste.height * 0.6 +
-                    beaconPull(i) + (i === state.beacon ? 16 : 0)
-                    + (t.capital ? 30 : 0) - (t.owner === 3 ? 4 : 0)) * w.raid
-          });
+          var prize = t.fert * taste.soil * 0.6 + t.elev * taste.height * 0.6
+                    + beaconPull(i) + (i === state.beacon ? 16 : 0)
+                    + (t.capital ? 30 : 0) - (t.owner === 3 ? 4 : 0);
+
+          if (!seenRaid[i]) {
+            seenRaid[i] = 1;
+            var src = E.canRaid(state, side, i);
+            if (src != null) {
+              var margin = E.attackValue(state, src, side) - def;
+              // never throw squares away on an attack that cannot land
+              if (margin > 0) cands.push({ type: 'raid', to: i, score: (7 + margin * 1.5 + prize) * w.raid });
+            }
+          }
+
+          // If the square cannot be taken today, massing on the square we
+          // would attack from makes it takeable in a turn or two. Without
+          // this the rival stares at a wall forever and the border never
+          // moves again — a stalemate nobody chose and nobody can end.
+          var deficit = def - (ft.str + 3 + E.stormSwing(state, side));
+          if (deficit >= 0 && deficit < 7) {
+            cands.push({ type: 'fortify', to: from, score: (12 + prize - deficit * 1.5) * w.siege });
+          }
         }
       }
     }

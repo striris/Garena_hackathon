@@ -231,22 +231,32 @@ CF.director = (function () {
       }
       return false;
     });
-    return argmax(d);
+    return argmax(d, state);
   }
 
   function coldestRegion(state) {
     var d = densityByRegion(state, function (t) { return t.land && t.owner === 0; });
-    return argmax(d);
+    return argmax(d, state);
   }
 
   function sideRegion(state, side) {
     var d = densityByRegion(state, function (t) { return t.land && t.owner === side; });
-    return argmax(d);
+    return argmax(d, state);
   }
 
-  function argmax(d) {
-    var best = null, bv = -1;
-    Object.keys(d).forEach(function (k) { if (d[k] > bv) { bv = d[k]; best = k; } });
+  // Ties matter here. Early on, nothing is contested and every region scores
+  // zero — and a fixed fallback meant season one always struck the same place
+  // and maimed the same people every single match.
+  function argmax(d, state) {
+    var best = null, bv = -1, ties = [];
+    Object.keys(d).forEach(function (k) {
+      if (d[k] > bv) { bv = d[k]; best = k; ties = [k]; }
+      else if (d[k] === bv) ties.push(k);
+    });
+    if (ties.length > 1 && state) {
+      var rand = U.rng({ seed: state.rngSeed + state.turn * 7919 });
+      return U.pick(rand, ties);
+    }
     return best || 'centre';
   }
 

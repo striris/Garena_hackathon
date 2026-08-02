@@ -45,7 +45,7 @@ CF.mapgen = (function () {
     // Kept deliberately thin. Land here is young, and generous, and there
     // is not enough of it for both peoples — which has to be true on the
     // board by about turn five or the game has no argument in it.
-    var half = 0.13 + rand() * 0.05;
+    var half = 0.215 + rand() * 0.05;
     for (var y = 0; y < H; y++) {
       for (var x = 0; x < W; x++) {
         var r = ringR(x, y);
@@ -104,8 +104,7 @@ CF.mapgen = (function () {
 
     seat(tiles, capA, 1);
     seat(tiles, capB, 2);
-    seedHome(tiles, capA, 1);
-    seedHome(tiles, capB, 2);
+    seedHome(tiles, capA);
 
     // --- the Beacon -------------------------------------------------------
     var beacon = pickBeacon(tiles, capA, capB);
@@ -138,11 +137,20 @@ CF.mapgen = (function () {
     t.elev = 3; t.fert = 2; t.str = 6;
   }
 
-  // two fields each, chosen the same way on both sides
-  function seedHome(tiles, cap, owner) {
+  // Two fields each. Only the western side chooses — the eastern side is
+  // handed the exact twins. Choosing independently looks equivalent but is
+  // not: rotation reverses index order, so on a tie the two sides picked
+  // different squares, and that ~1 tile of asymmetry per map was enough to
+  // skew several hundred simulated matches badly.
+  function seedHome(tiles, cap) {
     var ns = neighbors(cap).filter(function (n) { return tiles[n].land && tiles[n].owner === 0; });
     ns.sort(function (a, b) { return tiles[b].fert - tiles[a].fert || a - b; });
-    for (var k = 0; k < ns.length && k < 2; k++) { tiles[ns[k]].owner = owner; tiles[ns[k]].str = 2; }
+    for (var k = 0; k < ns.length && k < 2; k++) {
+      var i = ns[k], j = twin(i);
+      if (tiles[j].owner !== 0 || !tiles[j].land) continue;   // never overwrite a capital
+      tiles[i].owner = 1; tiles[i].str = 2;
+      tiles[j].owner = 2; tiles[j].str = 2;
+    }
   }
 
   // The fire wants open ground the same distance from both peoples. On a
