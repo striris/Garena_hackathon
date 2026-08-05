@@ -13,6 +13,12 @@
   var paused = false;
   var forceTurtle = false;
   var lastBotMood = '—';
+  var matchSerial = 0;
+  var matchId = '';
+  var profileSaved = false;
+  var directorAudit = null;
+  var aiHealth = { ready: false, source: 'FALLBACK', reason: 'checking' };
+  var saltkinAI = null;
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -84,6 +90,27 @@
 
   function newGame(seed) {
     game = E.newGame(seed);
+    lastBotMood = '—';
+    matchId = 'ring-' + seed + '-' + (++matchSerial);
+    profileSaved = false;
+    directorAudit = null;
+    saltkinAI = {
+      doctrine: null,
+      source: 'FALLBACK',
+      model: null,
+      latencyMs: 0,
+      requestId: null,
+      error: null,
+      pending: false,
+      requestSeq: 0,
+      lastRequestTurn: 0,
+      issuedTurn: 0,
+      uses: 0,
+      landAtIssue: E.landCount(game, 2),
+      beaconAtIssue: game.tiles[game.beacon].owner,
+      seasonAtIssue: 0,
+      eventsAtIssue: 0
+    };
     orders = []; busy = false; tool = 'expand';
     R.setState(game);
     R.setPreview([]);
@@ -94,6 +121,81 @@
     setTool('expand');
     renderFeed();
     refresh();
+    var healthMatch = matchId;
+    CF.ai.health().then(function (health) {
+      if (!game || healthMatch !== matchId) return;
+      aiHealth = health;
+      CF.ai.configure(health);
+      refresh();
+      requestDoctrine('match_start');
+    });
+  }
+
+  // ========================================================= Saltkin AI
+  function requestDoctrine(reason) {
+    if (!game || game.over || busy || saltkinAI.pending || saltkinAI.lastRequestTurn === game.turn) return;
+    var requestMatch = matchId, snapshotTurn = game.turn;
+    var seq = ++saltkinAI.requestSeq;
+    var payload = CF.profile.requestPayload(game, requestMatch);
+    payload.trigger = reason;
+    saltkinAI.pending = true;
+    saltkinAI.lastRequestTurn = snapshotTurn;
+    saltkinAI.error = null;
+    refresh();
+
+    CF.ai.saltkin(payload).then(function (response) {
+      if (!game || requestMatch !== matchId || snapshotTurn !== game.turn || busy ||
+          seq !== saltkinAI.requestSeq || response.matchId !== requestMatch || response.snapshotTurn !== snapshotTurn) {
+        if (requestMatch === matchId && seq === saltkinAI.requestSeq) {
+          saltkinAI.pending = false;
+          saltkinAI.error = 'late_response_discarded';
+          refresh();
+        }
+        return;
+      }
+      saltkinAI.pending = false;
+      saltkinAI.doctrine = response.decision;
+      saltkinAI.source = response.meta.source || 'LLM';
+      saltkinAI.model = response.meta.model || null;
+      saltkinAI.latencyMs = response.meta.latencyMs || 0;
+      saltkinAI.requestId = response.meta.requestId || null;
+      saltkinAI.error = null;
+      saltkinAI.issuedTurn = snapshotTurn;
+      saltkinAI.uses = 0;
+      saltkinAI.landAtIssue = E.landCount(game, 2);
+      saltkinAI.beaconAtIssue = game.tiles[game.beacon].owner;
+      saltkinAI.seasonAtIssue = game.season;
+      saltkinAI.eventsAtIssue = game.targetHistory.length;
+      say('b', 'Saltkin doctrine: ' + response.decision.stance + ' · ' + response.decision.intent);
+      renderFeed();
+      refresh();
+    }).catch(function (err) {
+      if (requestMatch !== matchId || seq !== saltkinAI.requestSeq) return;
+      saltkinAI.pending = false;
+      saltkinAI.source = 'FALLBACK';
+      saltkinAI.error = (err && err.code) || 'request_failed';
+      say('b', 'Saltkin AI fallback (' + saltkinAI.error + '). Deterministic strategy remains active.');
+      renderFeed();
+      refresh();
+    });
+  }
+
+  function maybeRequestDoctrine() {
+    if (!game || game.over) return;
+    var lostLand = saltkinAI.landAtIssue - E.landCount(game, 2);
+    var beaconChanged = game.tiles[game.beacon].owner !== saltkinAI.beaconAtIssue;
+    var worldChanged = game.targetHistory.length > saltkinAI.eventsAtIssue;
+    if (CF.profile.shouldRequestDoctrine({
+      pending: saltkinAI.pending,
+      lastRequestTurn: saltkinAI.lastRequestTurn,
+      turn: game.turn,
+      hasDoctrine: !!saltkinAI.doctrine,
+      uses: saltkinAI.uses,
+      lostLand: lostLand,
+      beaconChanged: beaconChanged,
+      worldChanged: worldChanged
+    }))
+      requestDoctrine(lostLand >= 3 ? 'lost_land' : beaconChanged ? 'beacon_changed' : worldChanged ? 'world_event' : 'doctrine_expired');
   }
 
   // ============================================================== ordering
@@ -132,8 +234,9 @@
     busy = true;
     $('btn-end').disabled = true;
 
-    var plan = CF.bot.plan(game, 2, forceTurtle);
+    var plan = CF.bot.plan(game, 2, forceTurtle, saltkinAI.doctrine);
     lastBotMood = plan.mood;
+    if (saltkinAI.doctrine) saltkinAI.uses++;
 
     var res = E.resolveTurn(game, orders, plan.orders);
     game = res.state;
@@ -149,7 +252,8 @@
 
   function phaseEvent() {
     var p = game.pending;
-    if (p && p.fireTurn === game.turn && !paused) {
+    if (game.over) { phaseDirector(); return; }
+    if (EV.isDue(p, game.turn) && !paused) {
       fireEvent(p);
       setTimeout(phaseDirector, 1700);
     } else {
@@ -159,25 +263,88 @@
   }
 
   function phaseDirector() {
-    if (!game.over && game.turn % 3 === 0 && !paused) {
+    var limitReached = game.stats.length >= E.MAX_TURNS;
+    if (!game.over && !limitReached && game.turn % 3 === 0 && !paused) {
       // mark the previous prediction right or wrong before choosing again
       game.chronicle.forEach(function (c) { if (c.fired) D.scorePrediction(game, c); });
+      var requestMatch = matchId, requestTurn = game.turn;
+      var prepared;
+      try {
+        prepared = D.prepare(game, saltkinAI.doctrine);
+        directorAudit = { prepared: prepared, source: 'PENDING', error: null };
+        refresh();
+      } catch (err) {
+        var immediate = D.decide(game);
+        immediate.source = 'FALLBACK';
+        immediate.reasoning = 'Source: FALLBACK · counterfactual_error\n\n' + immediate.reasoning;
+        directorAudit = { prepared: null, source: 'FALLBACK', error: 'counterfactual_error' };
+        queueDirectorEvent(immediate);
+        finalizeTurn();
+        return;
+      }
 
-      var ev = D.decide(game);
-      game.season = ev.season;
-      game.pending = ev;
-      game.chronicle.push({
-        season: ev.season, decidedTurn: game.turn, fireTurn: ev.fireTurn,
-        template: ev.template, intensity: ev.intensity, region: ev.region,
-        warning: ev.warning, reasoning: ev.reasoning, report: ev.report,
-        prediction: ev.prediction, predictionResult: 'pending',
-        message: null, fired: false, measured: null, mainTarget: ev.mainTarget
+      if (!prepared.candidates.length) {
+        var emptyFallback = prepared.baseline;
+        emptyFallback.source = 'FALLBACK';
+        emptyFallback.reasoning = 'Source: FALLBACK · no_safe_candidates\n\n' + emptyFallback.reasoning;
+        directorAudit.source = 'FALLBACK';
+        directorAudit.error = 'no_safe_candidates';
+        queueDirectorEvent(emptyFallback);
+        finalizeTurn();
+        return;
+      }
+
+      CF.ai.director(prepared.payload).then(function (response) {
+        if (requestMatch !== matchId || requestTurn !== game.turn || response.season !== prepared.report.season) return;
+        var ev = D.fromLLM(game, prepared, response.decision, response.meta);
+        if (!ev) throw new Error('unknown_candidate');
+        directorAudit.source = 'LLM';
+        directorAudit.meta = response.meta;
+        queueDirectorEvent(ev);
+        finalizeTurn();
+      }).catch(function (err) {
+        if (requestMatch !== matchId || requestTurn !== game.turn) return;
+        var ev = prepared.baseline;
+        var code = (err && err.code) || (err && err.message) || 'request_failed';
+        ev.source = 'FALLBACK';
+        ev.model = null;
+        ev.latencyMs = 0;
+        ev.requestId = null;
+        ev.candidateAudit = prepared.payload.candidates;
+        ev.shadowBaseline = { template: ev.template, intensity: ev.intensity, region: ev.region };
+        ev.reasoning = 'Source: FALLBACK · ' + code + '\n\n' + ev.reasoning;
+        directorAudit.source = 'FALLBACK';
+        directorAudit.error = code;
+        queueDirectorEvent(ev);
+        finalizeTurn();
       });
-      say('world', 'Cinder stirs. ' + ev.warning);
+      return;
     }
 
-    game.turn += 1;
+    finalizeTurn();
+  }
+
+  function queueDirectorEvent(ev) {
+    game.season = ev.season;
+    game.pending = ev;
+    game.chronicle.push({
+      season: ev.season, decidedTurn: game.turn, fireTurn: ev.fireTurn,
+      template: ev.template, intensity: ev.intensity, region: ev.region,
+      warning: ev.warning, reasoning: ev.reasoning, report: ev.report,
+      prediction: ev.prediction, predictionResult: 'pending',
+      message: null, fired: false, measured: null, mainTarget: ev.mainTarget,
+      source: ev.source || 'FALLBACK', model: ev.model || null,
+      latencyMs: ev.latencyMs || 0, requestId: ev.requestId || null,
+      goal: ev.goal || null, confidence: ev.confidence == null ? null : ev.confidence,
+      evidenceUsed: ev.evidenceUsed || [], shadowBaseline: ev.shadowBaseline || null,
+      candidateAudit: ev.candidateAudit || []
+    });
+    say('world', 'Cinder stirs. ' + ev.warning);
+  }
+
+  function finalizeTurn() {
     if (!game.over) game.over = E.checkVictory(game);
+    if (!game.over) game.turn += 1;
 
     busy = false;
     $('btn-end').disabled = false;
@@ -185,19 +352,54 @@
     renderFeed();
     refresh();
     if (game.over) showGameOver();
+    else maybeRequestDoctrine();
   }
 
   function fireEvent(ev) {
+    // Validate again against the live board. A warned event was safe when it
+    // was proposed, but the intervening player turn may have changed that.
+    var guard = CF.validator.check(game, ev);
+    if (!guard.ok) {
+      var replacement = D.recoverEvent(game, ev, guard.fails);
+      if (replacement) {
+        say('world', EV.nameOf(ev.template) + ' failed its live check; Cinder switched to ' + EV.nameOf(replacement.template) + '.');
+        var recovered = game.chronicle.filter(function (c) { return c.season === ev.season; })[0];
+        if (recovered) {
+          recovered.template = replacement.template;
+          recovered.intensity = replacement.intensity;
+          recovered.region = replacement.region;
+          recovered.warning = replacement.warning;
+          recovered.reasoning = replacement.reasoning;
+          recovered.mainTarget = replacement.mainTarget;
+          recovered.source = 'FALLBACK';
+        }
+        game.pending = replacement;
+        return fireEvent(replacement);
+      }
+      say('world', EV.nameOf(ev.template) + ' was refused at the gate — ' + guard.fails.join('; ') + '.');
+      var refused = game.chronicle.filter(function (c) { return c.season === ev.season; })[0];
+      if (refused) {
+        refused.message = 'Refused at execution: ' + guard.fails.join('; ');
+        refused.predictionResult = 'refused';
+        refused.reasoning += '\n\nExecution guardrails: refused — ' + guard.fails.join('; ') + '.';
+      }
+      game.pending = null;
+      renderFeed();
+      refresh();
+      return false;
+    }
+
     var out = EV.apply(game, ev);
     if (!out.ok) {
       say('world', 'The mountain rumbled and thought better of it.');
       game.pending = null;
-      return;
+      return false;
     }
     game = out.state;
     game.pending = null;
     game.lastTemplate = ev.template;
-    game.targetHistory.push(ev.mainTarget || 0);
+    ev.mainTarget = guard.mainTarget || 0;
+    game.targetHistory.push(ev.mainTarget);
     D.noteUse(game, ev.template);
 
     R.setState(game);
@@ -211,6 +413,7 @@
     if (!game.over) game.over = E.checkVictory(game);
     renderFeed();
     refresh();
+    return true;
   }
 
   // ================================================================== UI
@@ -339,6 +542,10 @@
       : o.winner === 1 ? 'THE ASHFARERS HOLD' : 'THE SALTKIN HOLD';
     $('go-sub').textContent = o.why + ' Cinder is still working.';
     $('gameover').classList.remove('hidden');
+    if (!profileSaved) {
+      CF.profile.completeMatch(game);
+      profileSaved = true;
+    }
   }
 
   // ---------------------------------------------------------- chronicle
@@ -355,11 +562,12 @@
 
       var tag = c.predictionResult === 'hit' ? '<span class="tag hit">PREDICTION HELD</span>'
               : c.predictionResult === 'miss' ? '<span class="tag miss">PREDICTION WRONG</span>'
+              : c.predictionResult === 'refused' ? '<span class="tag miss">EVENT REFUSED</span>'
               : '<span class="tag wait">NOT YET MEASURED</span>';
 
       d.innerHTML =
         '<div class="ch-top">' +
-          '<span class="ch-season">SEASON ' + c.season + ' · TURN ' + c.fireTurn + '</span>' +
+          '<span class="ch-season">SEASON ' + c.season + ' · TURN ' + c.fireTurn + ' · ' + (c.source || 'FALLBACK') + '</span>' +
           '<span class="ch-int">' + 'I'.repeat(c.intensity) + '</span>' +
           '<span class="ch-name">' + EV.nameOf(c.template) + '</span>' +
         '</div>' +
@@ -369,7 +577,9 @@
           '<div class="ch-pred">' + tag + '<span class="pred-text"></span></div>' +
         '</div>';
 
-      d.querySelector('.ch-msg').textContent = c.fired ? '“' + c.message + '”' : '(warned, not yet fired) ' + c.warning;
+      d.querySelector('.ch-msg').textContent = c.fired ? '“' + c.message + '”'
+        : c.predictionResult === 'refused' ? '(' + c.message + ')'
+        : '(warned, not yet fired) ' + c.warning;
       d.querySelector('.ch-why').textContent = c.reasoning;
       d.querySelector('.pred-text').textContent = c.prediction.text + (c.measured ? ' — ' + c.measured : '');
       el.appendChild(d);
@@ -381,6 +591,43 @@
     var last = game.chronicle[game.chronicle.length - 1];
     $('con-report').textContent = last ? last.report : 'Cinder is asleep. It wakes at the end of turn 3.';
     $('con-reason').textContent = last ? last.reasoning : '—';
+
+    var healthLine = 'SERVER ' + (aiHealth.ready ? 'READY' : 'FALLBACK') +
+      ' · ' + (aiHealth.model || 'openai/gpt-oss-120b') +
+      (aiHealth.reason ? ' · ' + aiHealth.reason : '');
+    var saltkinLine = 'SALTKIN ' + (saltkinAI.pending ? 'PENDING' : saltkinAI.source) +
+      (saltkinAI.error ? ' · ' + saltkinAI.error : '') +
+      (saltkinAI.latencyMs ? ' · ' + saltkinAI.latencyMs + 'ms' : '');
+    var directorLine = 'DIRECTOR ' + (directorAudit ? directorAudit.source : 'SLEEPING') +
+      (directorAudit && directorAudit.error ? ' · ' + directorAudit.error : '');
+    $('con-ai-status').textContent = [healthLine, saltkinLine, directorLine].join('\n');
+    $('con-ai-status').classList.toggle('fallback', !aiHealth.ready || saltkinAI.source === 'FALLBACK' ||
+      (directorAudit && directorAudit.source === 'FALLBACK'));
+
+    var doctrineText = saltkinAI.doctrine ? JSON.stringify(saltkinAI.doctrine, null, 2) : 'heuristic fallback';
+    $('con-doctrine').textContent = doctrineText + '\n\nsource=' + saltkinAI.source +
+      ' · used=' + saltkinAI.uses + '/3' + (saltkinAI.requestId ? ' · request=' + saltkinAI.requestId : '');
+    var playerProfile = CF.profile.build(game, CF.profile.load());
+    $('con-profile').textContent = JSON.stringify(playerProfile.features, null, 2) +
+      '\n\nEVIDENCE\n' + JSON.stringify(playerProfile.evidence, null, 2);
+    $('saltkin-intent').textContent = saltkinAI.doctrine
+      ? 'SALTKIN AI · ' + saltkinAI.doctrine.stance + ' / ' + saltkinAI.doctrine.objective + ' · ' + saltkinAI.doctrine.intent
+      : 'SALTKIN AI · FALLBACK · deterministic ' + lastBotMood + ' strategy';
+
+    if (!directorAudit || !directorAudit.prepared) {
+      $('con-candidates').textContent = 'no season evaluated yet';
+    } else {
+      var prepared = directorAudit.prepared;
+      var candidateLines = prepared.candidates.map(function (c) {
+        return c.id + ' ' + EV.nameOf(c.event.template) + ' I'.repeat(c.event.intensity) + ' ' + c.event.region.toUpperCase() +
+          ' · raids ' + c.summary.raids_per_turn.median + ' · captures ' + c.summary.captures.median +
+          ' · gap ' + c.summary.land_gap.median;
+      });
+      candidateLines.push('');
+      candidateLines.push('SHADOW · ' + EV.nameOf(prepared.baseline.template) + ' I'.repeat(prepared.baseline.intensity) +
+        ' ' + prepared.baseline.region.toUpperCase());
+      $('con-candidates').textContent = candidateLines.join('\n');
+    }
 
     var p = game.pending;
     $('con-pending').textContent = p
@@ -450,6 +697,10 @@
     $('con-pause').onchange = function () {
       paused = this.checked;
       say('world', paused ? 'Director paused by the designer.' : 'Director resumed.');
+      // Release an overdue event before the next player action. If a turn is
+      // already resolving, its scheduled event phase will do the same check.
+      if (!paused && !busy && !game.over && EV.isDue(game.pending, game.turn))
+        fireEvent(game.pending);
       renderFeed();
     };
     $('con-turtle').onchange = function () {
@@ -458,6 +709,19 @@
         ? 'Rival forced to turtle. Sit still and watch what the mountain does about it.'
         : 'Rival returned to its own judgement.');
       renderFeed();
+    };
+    $('con-ai-fail').onchange = function () {
+      CF.ai.setFailure(this.checked);
+      say('world', this.checked ? 'AI failure simulation enabled. Requests will time out into explicit fallback.'
+        : 'AI failure simulation disabled.');
+      renderFeed();
+      refresh();
+    };
+    $('con-clear-memory').onclick = function () {
+      CF.profile.clear();
+      say('world', 'Adaptive player memory cleared. No identity data was stored.');
+      renderFeed();
+      refresh();
     };
 
     // template picker for the override
@@ -479,18 +743,24 @@
         mainTarget: 0
       };
       ev.warning = EV.warningFor(ev);
-      var chk = CF.validator.check(game, ev);
-      ev.reasoning = 'Overridden by the designer.\n\nGuardrails: ' +
-        (chk.ok ? 'passed.' : 'REFUSED — ' + chk.fails.join('; ') + '. Applied anyway on human authority.');
+      var approval = CF.validator.approveOverride(game, ev);
+      if (!approval.ok) {
+        say('world', 'Designer override refused — ' + approval.fails.join('; ') + '.');
+        renderFeed();
+        refresh();
+        return;
+      }
+      ev.reasoning = 'Overridden by the designer.\n\nGuardrails: passed.';
       ev.report = game.pending ? game.pending.report : '(no report — human override)';
-      ev.mainTarget = chk.mainTarget || 0;
+      ev.mainTarget = approval.mainTarget;
 
       if (game.pending) {
         game.pending = ev;
         var entry = game.chronicle[game.chronicle.length - 1];
         if (entry && !entry.fired) {
           entry.template = ev.template; entry.intensity = ev.intensity;
-          entry.warning = ev.warning; entry.reasoning = ev.reasoning; entry.prediction = ev.prediction;
+          entry.region = ev.region; entry.warning = ev.warning; entry.reasoning = ev.reasoning;
+          entry.prediction = ev.prediction; entry.mainTarget = ev.mainTarget;
         }
         say('world', 'Designer override: the next event is now ' + EV.nameOf(ev.template) + '.');
       } else {

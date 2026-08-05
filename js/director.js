@@ -7,9 +7,10 @@
    season after, that prediction gets marked right or wrong and
    the answer feeds back in.
 
-   This build runs the director as a scored heuristic rather than
-   a language model — the same interface, the same five outputs,
-   no network call. See README for the swap point.
+   The scored heuristic remains the offline fallback and shadow baseline.
+   In live play it also builds a diverse, validated candidate set; an LLM may
+   compare deterministic three-turn counterfactuals but can only select one of
+   those candidates. Plain code retains final authority.
    ============================================================ */
 CF.director = (function () {
   var U = CF.util, E = CF.engine, EV = CF.events;
@@ -260,6 +261,291 @@ CF.director = (function () {
     return best || 'centre';
   }
 
+  // ------------------------------------------------ counterfactual planner
+  function availableChoices(state, side) {
+    var expand = 0, raid = 0;
+    for (var i = 0; i < state.tiles.length; i++) {
+      if (E.canExpand(state, side, i) != null) expand++;
+      if (E.canRaid(state, side, i) != null) raid++;
+    }
+    return { expand: expand, raid: raid, total: expand + raid };
+  }
+
+  function choiceLoss(before, after) {
+    function sideLoss(side) {
+      var a = availableChoices(before, side), b = availableChoices(after, side);
+      return {
+        before: a.total,
+        after: b.total,
+        loss: a.total ? Math.max(0, +(1 - b.total / a.total).toFixed(3)) : 0
+      };
+    }
+    return { ashfarers: sideLoss(1), saltkin: sideLoss(2) };
+  }
+
+  function mapSignature(state) {
+    return state.tiles.map(function (t) {
+      return [t.land ? 1 : 0, t.owner, t.elev, t.fert, t.str, t.crater ? 1 : 0].join('');
+    }).join('|') + ';b=' + state.beacon + ';m=' + JSON.stringify(state.mods);
+  }
+
+  function stableHash(text) {
+    var h = 2166136261;
+    for (var i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
+  function cutOffBySide(state) {
+    var out = { 1: 0, 2: 0 };
+    for (var i = 0; i < state.tiles.length; i++) {
+      var t = state.tiles[i];
+      if (t.land && (t.owner === 1 || t.owner === 2) && state.supply[i] !== t.owner) out[t.owner]++;
+    }
+    return out;
+  }
+
+  function rollout(state, ev, saltkinDoctrine, playerStance) {
+    // Mirror the live lifecycle: the warned turn resolves first, then the
+    // event passes a fresh safety check and fires, then two more turns play.
+    var g = U.deepClone(state);
+    g.pending = U.deepClone(ev);
+    g.over = null;
+    g.turn = state.turn + 1;
+    var beaconOwner = g.tiles[g.beacon].owner, beaconChanges = 0;
+    var raids = 0, captures = 0;
+    var playerDoctrine = {
+      stance: playerStance,
+      objective: playerStance === 'FORTRESS' ? 'SUPPLY' : playerStance === 'GROWTH' ? 'LAND' : 'BEACON',
+      target_region: 'CENTRE',
+      risk: playerStance === 'ASSAULT' ? 'HIGH' : 'MEDIUM'
+    };
+
+    for (var turn = 0; turn < 3 && !g.over; turn++) {
+      var a = CF.bot.plan(g, 1, false, playerDoctrine);
+      var b = CF.bot.plan(g, 2, false, saltkinDoctrine || null);
+      var resolved = E.resolveTurn(g, a.orders, b.orders);
+      g = resolved.state;
+      var stat = g.stats[g.stats.length - 1];
+      raids += stat.raids;
+      captures += stat.captures;
+      if (turn === 0) {
+        var liveGuard = CF.validator.check(g, ev);
+        if (!liveGuard.ok) return null;
+        var applied = EV.apply(g, ev);
+        if (!applied.ok) return null;
+        g = applied.state;
+        g.pending = null;
+      }
+      var holder = g.tiles[g.beacon].owner;
+      if (holder !== beaconOwner) beaconChanges++;
+      beaconOwner = holder;
+      if (!g.over) g.turn++;
+    }
+
+    var cut = cutOffBySide(g);
+    return {
+      raids_per_turn: +(raids / 3).toFixed(2),
+      captures: captures,
+      land_gap: Math.abs(E.landCount(g, 1) - E.landCount(g, 2)),
+      income_gap: Math.abs(E.income(g, 1) - E.income(g, 2)),
+      beacon_contest: beaconChanges,
+      cut_off: { ashfarers: cut[1], saltkin: cut[2] },
+      choices: { ashfarers: availableChoices(g, 1).total, saltkin: availableChoices(g, 2).total }
+    };
+  }
+
+  function median(values) {
+    var sorted = values.slice().sort(function (a, b) { return a - b; });
+    return sorted[(sorted.length / 2) | 0];
+  }
+
+  function summarizeRollouts(outcomes) {
+    var metrics = ['raids_per_turn', 'captures', 'land_gap', 'income_gap', 'beacon_contest'];
+    var summary = {};
+    metrics.forEach(function (metric) {
+      var values = outcomes.map(function (o) { return o.result[metric]; });
+      summary[metric] = { median: median(values), min: Math.min.apply(Math, values), max: Math.max.apply(Math, values) };
+    });
+    summary.cut_off = {
+      ashfarers: median(outcomes.map(function (o) { return o.result.cut_off.ashfarers; })),
+      saltkin: median(outcomes.map(function (o) { return o.result.cut_off.saltkin; }))
+    };
+    summary.choices = {
+      ashfarers: median(outcomes.map(function (o) { return o.result.choices.ashfarers; })),
+      saltkin: median(outcomes.map(function (o) { return o.result.choices.saltkin; }))
+    };
+    return summary;
+  }
+
+  function enumerateCandidates(state, saltkinDoctrine) {
+    var raw = [], signatures = {};
+    EV.all().forEach(function (template) {
+      for (var intensity = 1; intensity <= 3; intensity++) {
+        EV.REGIONS.forEach(function (region) {
+          var ev = { template: template, intensity: intensity, region: region };
+          var guard = CF.validator.check(state, ev);
+          if (!guard.ok || !guard.sim) return;
+          var choices = choiceLoss(state, guard.sim.state);
+          if (choices.ashfarers.loss > 0.4 || choices.saltkin.loss > 0.4) return;
+          var signature = mapSignature(guard.sim.state);
+          if (signatures[signature]) return;
+          signatures[signature] = true;
+          raw.push({
+            event: ev,
+            mainTarget: guard.mainTarget || 0,
+            choiceImpact: choices,
+            sortKey: stableHash([state.seed, state.turn, template, intensity, region].join(':'))
+          });
+        });
+      }
+    });
+
+    // Round-robin by template prevents enumeration order from quietly making
+    // the heuristic choose for the model before it sees the candidates.
+    var groups = {};
+    raw.forEach(function (c) { (groups[c.event.template] || (groups[c.event.template] = [])).push(c); });
+    Object.keys(groups).forEach(function (key) {
+      groups[key].sort(function (a, b) { return a.sortKey - b.sortKey; });
+    });
+    var picked = [], round = 0, templates = EV.all();
+    while (picked.length < 10) {
+      var progressed = false;
+      templates.forEach(function (template) {
+        if (picked.length >= 10 || !groups[template] || !groups[template][round]) return;
+        picked.push(groups[template][round]); progressed = true;
+      });
+      if (!progressed) break;
+      round++;
+    }
+
+    var scenarios = [
+      { name: 'CONTINUE_PROFILE', stance: 'ASSAULT' },
+      { name: 'RESPOND_TO_WARNING', stance: 'FORTRESS' },
+      { name: 'CONTEST_NEW_PRIZE', stance: 'GROWTH' }
+    ];
+    var simulated = picked.map(function (candidate) {
+      var outcomes = scenarios.map(function (scenario) {
+        return { scenario: scenario.name, result: rollout(state, candidate.event, saltkinDoctrine, scenario.stance) };
+      }).filter(function (o) { return !!o.result; });
+      candidate.outcomes = outcomes;
+      candidate.summary = outcomes.length === 3 ? summarizeRollouts(outcomes) : null;
+      delete candidate.sortKey;
+      return candidate;
+    }).filter(function (candidate) { return candidate.outcomes.length === 3; });
+    simulated.forEach(function (candidate, index) { candidate.id = 'C' + (index + 1); });
+    return simulated;
+  }
+
+  function prepare(state, saltkinDoctrine) {
+    var report = read(state);
+    var baseline = decide(state);
+    var full = enumerateCandidates(state, saltkinDoctrine);
+    return {
+      report: report,
+      reportText: brief(state, report),
+      baseline: baseline,
+      candidates: full,
+      payload: {
+        report: report,
+        recentMemory: state.memory,
+        saltkinDoctrine: saltkinDoctrine || null,
+        shadowBaseline: {
+          template: baseline.template,
+          intensity: baseline.intensity,
+          region: baseline.region
+        },
+        candidates: full.map(function (c) {
+          return {
+            id: c.id,
+            event: c.event,
+            choiceImpact: c.choiceImpact,
+            counterfactual: c.summary
+          };
+        })
+      }
+    };
+  }
+
+  function fromLLM(state, prepared, decision, meta) {
+    var chosen = prepared.candidates.filter(function (c) { return c.id === decision.selected_candidate; })[0];
+    if (!chosen) return null;
+    var ev = U.deepClone(chosen.event);
+    var direction = decision.prediction.direction;
+    ev.prediction = {
+      metric: decision.prediction.metric,
+      direction: direction,
+      horizon: 3,
+      mag: 0.2,
+      text: decision.player_explanation
+    };
+    ev.season = prepared.report.season;
+    ev.fireTurn = state.turn + 1;
+    ev.warning = EV.warningFor(ev);
+    ev.report = prepared.reportText;
+    ev.mainTarget = chosen.mainTarget || 0;
+    ev.source = 'LLM';
+    ev.model = meta.model;
+    ev.latencyMs = meta.latencyMs;
+    ev.requestId = meta.requestId || null;
+    ev.goal = decision.goal;
+    ev.confidence = decision.confidence;
+    ev.evidenceUsed = decision.evidence_used;
+    ev.shadowBaseline = {
+      template: prepared.baseline.template,
+      intensity: prepared.baseline.intensity,
+      region: prepared.baseline.region
+    };
+    ev.candidateAudit = prepared.payload.candidates;
+    ev.alternates = prepared.candidates.filter(function (c) { return c.id !== chosen.id; })
+      .map(function (c) { return c.event; });
+    ev.reasoning = [
+      'Source: LLM · ' + meta.model + ' · ' + meta.latencyMs + 'ms' + (meta.requestId ? ' · ' + meta.requestId : ''),
+      'Goal: ' + decision.goal + ' · confidence ' + Math.round(decision.confidence * 100) + '%.',
+      'Decision evidence: ' + (decision.evidence_used.length ? decision.evidence_used.join(', ') : 'no evidence keys returned') + '.',
+      'Selected ' + chosen.id + ': ' + EV.nameOf(ev.template) + ' at intensity ' + ev.intensity + ', aimed at ' + EV.regionName(ev.region) + '.',
+      'Counterfactual median: ' + chosen.summary.raids_per_turn.median + ' raids/turn, ' +
+        chosen.summary.captures.median + ' captures, land gap ' + chosen.summary.land_gap.median + '.',
+      'Shadow baseline: ' + EV.nameOf(prepared.baseline.template) + ' at intensity ' + prepared.baseline.intensity + '.',
+      'Guardrails: candidate passed before selection; live board will be checked again before execution.',
+      'Prediction: ' + decision.player_explanation
+    ].join('\n\n');
+    return ev;
+  }
+
+  function recoverEvent(state, failed, fails) {
+    var alternates = failed.alternates || [];
+    for (var i = 0; i < alternates.length; i++) {
+      var proposal = U.deepClone(alternates[i]);
+      var guard = CF.validator.check(state, proposal);
+      if (!guard.ok) continue;
+      proposal.season = failed.season;
+      proposal.fireTurn = state.turn;
+      proposal.warning = EV.warningFor(proposal);
+      proposal.prediction = failed.prediction;
+      proposal.report = failed.report;
+      proposal.mainTarget = guard.mainTarget || 0;
+      proposal.source = 'FALLBACK';
+      proposal.reasoning = failed.reasoning + '\n\nExecution recovery: original candidate refused (' +
+        fails.join('; ') + '); next live-safe candidate selected.';
+      proposal.alternates = alternates.slice(i + 1);
+      return proposal;
+    }
+    var safe = safeDefault(state);
+    var finalGuard = CF.validator.check(state, safe);
+    if (!finalGuard.ok) return null;
+    safe.season = failed.season;
+    safe.fireTurn = state.turn;
+    safe.warning = EV.warningFor(safe);
+    safe.report = failed.report;
+    safe.mainTarget = finalGuard.mainTarget || 0;
+    safe.source = 'FALLBACK';
+    safe.reasoning = failed.reasoning + '\n\nExecution recovery: all candidates refused; deterministic safe default selected.';
+    return safe;
+  }
+
   // ------------------------------------------------------------ decision
   function decide(state) {
     var r = read(state);
@@ -364,17 +650,29 @@ CF.director = (function () {
     var after = st.filter(function (s) { return s.turn >= fire && s.turn < fire + 3; });
     if (after.length < 2) return entry;
 
-    var avg = function (a) { return a.length ? a.reduce(function (x, s) { return x + s.raids; }, 0) / a.length : 0; };
-    var b = avg(before), a = avg(after);
+    var metric = entry.prediction.metric || 'raids_per_turn';
+    if (metric === 'raids') metric = 'raids_per_turn';
+    function value(list) {
+      if (!list.length) return 0;
+      if (metric === 'captures') return list.reduce(function (x, s) { return x + s.captures; }, 0) / list.length;
+      if (metric === 'land_gap') return list.reduce(function (x, s) { return x + Math.abs(s.landA - s.landB); }, 0) / list.length;
+      if (metric === 'beacon_contest') {
+        var changes = 0;
+        for (var i = 1; i < list.length; i++) if (list[i].beacon !== list[i - 1].beacon) changes++;
+        return changes;
+      }
+      return list.reduce(function (x, s) { return x + s.raids; }, 0) / list.length;
+    }
+    var b = value(before), a = value(after);
     var change = b === 0 ? (a > 0 ? 1 : 0) : (a - b) / b;
 
     var p = entry.prediction;
-    var wanted = p.dir === 'up' ? 1 : -1;
+    var wanted = (p.direction || (p.dir === 'up' ? 'increase' : 'decrease')) === 'increase' ? 1 : -1;
     var moved = change * wanted;
-    var hit = moved >= p.mag * 0.5;
+    var hit = moved >= (p.mag || 0.2) * 0.5;
 
     entry.predictionResult = hit ? 'hit' : 'miss';
-    entry.measured = 'raids went from ' + b.toFixed(1) + ' to ' + a.toFixed(1) + ' a turn (' +
+    entry.measured = metric.replace(/_/g, ' ') + ' went from ' + b.toFixed(1) + ' to ' + a.toFixed(1) + ' (' +
                      (change >= 0 ? '+' : '') + Math.round(change * 100) + '%)';
 
     var m = state.memory[entry.template] || (state.memory[entry.template] = { uses: 0, hits: 0, misses: 0 });
@@ -387,6 +685,8 @@ CF.director = (function () {
     m.uses++;
   }
 
-  return { read: read, brief: brief, decide: decide, scorePrediction: scorePrediction,
+  return { read: read, brief: brief, decide: decide, prepare: prepare, fromLLM: fromLLM,
+           enumerateCandidates: enumerateCandidates, availableChoices: availableChoices,
+           recoverEvent: recoverEvent, scorePrediction: scorePrediction,
            noteUse: noteUse, safeDefault: safeDefault };
 })();

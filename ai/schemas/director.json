@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DirectorDecision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["selected_candidate", "goal", "evidence_used", "prediction", "player_explanation", "confidence"],
+  "properties": {
+    "selected_candidate": {"type": "string", "pattern": "^C[1-9][0-9]*$"},
+    "goal": {"enum": ["BREAK_STALEMATE", "RESTORE_COMPETITION", "CREATE_CONTESTED_PRIZE", "PRESERVE_VARIETY", "SLOW_RUNAWAY"]},
+    "evidence_used": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "prediction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metric", "direction", "horizon"],
+      "properties": {
+        "metric": {"enum": ["raids_per_turn", "captures", "land_gap", "beacon_contest"]},
+        "direction": {"enum": ["increase", "decrease"]},
+        "horizon": {"const": 3}
+      }
+    },
+    "player_explanation": {"type": "string", "minLength": 1, "maxLength": 240},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+  }
+}
+

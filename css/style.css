@@ -303,6 +303,11 @@ body{
 .mem-row .mbar{flex:0 0 60px;height:5px;border-radius:3px;background:var(--ash-3);overflow:hidden}
 .mem-row .mbar i{display:block;height:100%;background:linear-gradient(90deg,var(--molten),var(--beacon))}
 .mem-row b{flex:0 0 34px;text-align:right;font-size:10px;color:var(--ink-faint)}
+.ai-intent{font-size:10.5px;line-height:1.5;color:#b7d8c8;border:1px solid rgba(61,220,132,.22);background:rgba(61,220,132,.06);border-radius:7px;padding:8px 10px;margin:-4px 0 12px}
+.ai-status{font:10.5px/1.5 "Consolas","SF Mono",monospace;color:var(--jade);border:1px solid var(--line);background:rgba(0,0,0,.35);border-radius:6px;padding:7px 9px;white-space:pre-wrap}
+.ai-status.fallback{color:#ffb07a;border-color:rgba(255,138,61,.35)}
+#con-doctrine,#con-profile,#con-candidates{font:10px/1.55 "Consolas","SF Mono",monospace;color:#b7d8c8;white-space:pre-wrap;overflow-wrap:anywhere;background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:6px;padding:8px}
+#con-candidates{max-height:220px;overflow-y:auto;color:var(--ink-dim)}
 
 /* ============================================================
    THE COLD OPEN

@@ -6,7 +6,7 @@
    mountain acts the whole table shakes.
    ============================================================ */
 CF.render = (function () {
-  var U = CF.util, E = CF.engine;
+  var U = CF.util, E = CF.engine, EV = CF.events;
 
   var cv, ctx, dpr = 1;
   var state = null;
@@ -135,7 +135,7 @@ CF.render = (function () {
           lavaBurst(f.at, f.r || 2);
           break;
         case 'rift':
-          rifts.push({ line: f.line, dir: f.dir, born: performance.now() }); break;
+          rifts.push({ line: f.line, dir: f.dir, region: f.region, born: performance.now() }); break;
         case 'flood':
           floodSweep(f.region); break;
         case 'skyDark':
@@ -525,6 +525,24 @@ CF.render = (function () {
       ctx.strokeStyle = COL.fire;
       ctx.shadowColor = COL.fire; ctx.shadowBlur = 22;
       ctx.lineWidth = 3 + (1 - age) * 5;
+      // The visual rift must tell the same story as the warning and damage.
+      // All event regions are rectangular, so clip the seam to the tiles that
+      // EV.inRegion says belong to the warned area.
+      if (rf.region) {
+        var minX = state.W, minY = state.H, maxX = -1, maxY = -1;
+        for (var i = 0; i < state.tiles.length; i++) {
+          if (!EV.inRegion(state, i, rf.region)) continue;
+          var tx = i % state.W, ty = (i / state.W) | 0;
+          minX = Math.min(minX, tx); minY = Math.min(minY, ty);
+          maxX = Math.max(maxX, tx); maxY = Math.max(maxY, ty);
+        }
+        if (maxX >= minX && maxY >= minY) {
+          ctx.beginPath();
+          ctx.rect(geom.ox + minX * geom.ts, geom.oy + minY * geom.ts,
+                   (maxX - minX + 1) * geom.ts, (maxY - minY + 1) * geom.ts);
+          ctx.clip();
+        }
+      }
       ctx.beginPath();
       if (rf.dir === 'v') {
         var x = geom.ox + (rf.line + 0.5) * geom.ts;

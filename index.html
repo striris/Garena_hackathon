@@ -90,6 +90,8 @@
           </div>
         </div>
 
+        <div id="saltkin-intent" class="ai-intent">SALTKIN AI · heuristic doctrine</div>
+
         <div class="tools">
           <button class="tool active" data-tool="expand">
             <kbd>1</kbd><span class="tname">EXPAND</span><span class="tcost" id="cost-expand">2</span>
@@ -121,7 +123,22 @@
 
       <!-- ---------- CONSOLE ---------- -->
       <div class="panel" id="tab-console">
-        <p class="panel-note">Designer console. Cinder proposes — plain code approves — a human can override.</p>
+        <p class="panel-note">Designer audit console. Two goal-limited AIs propose — deterministic code approves — a human can override safely.</p>
+
+        <div class="con-block">
+          <div class="con-title">AI RUNTIME</div>
+          <div id="con-ai-status" class="ai-status">CHECKING</div>
+        </div>
+
+        <div class="con-block">
+          <div class="con-title">SALTKIN DOCTRINE</div>
+          <pre id="con-doctrine">heuristic fallback</pre>
+        </div>
+
+        <div class="con-block">
+          <div class="con-title">PLAYER PROFILE · RESOLVED HISTORY ONLY</div>
+          <pre id="con-profile">no resolved turns yet</pre>
+        </div>
 
         <div class="con-block">
           <div class="con-title">CURRENT READING</div>
@@ -129,8 +146,13 @@
         </div>
 
         <div class="con-block">
-          <div class="con-title">REASONING</div>
+          <div class="con-title">DECISION EVIDENCE</div>
           <div id="con-reason" class="reason">—</div>
+        </div>
+
+        <div class="con-block">
+          <div class="con-title">COUNTERFACTUAL CANDIDATES · SHADOW BASELINE</div>
+          <pre id="con-candidates">no season evaluated yet</pre>
         </div>
 
         <div class="con-block">
@@ -149,9 +171,11 @@
           <div class="con-title">CONTROLS</div>
           <label class="chk"><input type="checkbox" id="con-pause"> pause the director</label>
           <label class="chk"><input type="checkbox" id="con-turtle"> force stalemate <em>(both sides turtle)</em></label>
+          <label class="chk"><input type="checkbox" id="con-ai-fail"> simulate AI failure <em>(3s → FALLBACK)</em></label>
           <div class="con-row">
             <button id="con-fire" class="mini">fire now</button>
             <button id="con-new" class="mini">new ring</button>
+            <button id="con-clear-memory" class="mini">clear player memory</button>
           </div>
         </div>
 
@@ -291,6 +315,8 @@
 <script src="js/events.js"></script>
 <script src="js/validator.js"></script>
 <script src="js/bot.js"></script>
+<script src="js/profile.js"></script>
+<script src="js/ai.js"></script>
 <script src="js/director.js"></script>
 <script src="js/render.js"></script>
 <script src="js/main.js"></script>

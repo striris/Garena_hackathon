@@ -119,14 +119,15 @@ CF.events = (function () {
       blurb: 'A line of land drops into the sea, cutting supply lines. Splitting a territory hurts more than shrinking it.',
       warn: function (ev) { return 'The ground is splitting across ' + regionName(ev.region) + '.'; },
       run: function (s, ev, rand, fx) {
-        // find the seam that cuts the most supply, not just the most land
+        // Find the seam that cuts the most supply inside the warned region,
+        // not just the most land anywhere on the map.
         var best = null, bestScore = -1;
         for (var col = 1; col < s.W - 1; col++) {
-          var sc = seamScore(s, col, 'v');
+          var sc = seamScore(s, col, 'v', ev.region);
           if (sc > bestScore) { bestScore = sc; best = { line: col, dir: 'v' }; }
         }
         for (var row = 1; row < s.H - 1; row++) {
-          var sr = seamScore(s, row, 'h');
+          var sr = seamScore(s, row, 'h', ev.region);
           if (sr > bestScore) { bestScore = sr; best = { line: row, dir: 'h' }; }
         }
         if (!best) return null;
@@ -135,15 +136,16 @@ CF.events = (function () {
         for (var i = 0; i < s.tiles.length; i++) {
           var x = i % s.W, y = (i / s.W) | 0;
           var on = best.dir === 'v' ? x === best.line : y === best.line;
-          if (!on) continue;
+          if (!on || !inRegion(s, i, ev.region)) continue;
           // intensity 1 tears every other square, 3 tears the whole seam
           if (ev.intensity < 3 && ((best.dir === 'v' ? y : x) % (4 - ev.intensity)) !== 0) continue;
           if (sink(s, i, fx)) { gone++; if (first < 0) first = i; }
         }
         fx.push({ kind: 'quake', power: 2.4 });
-        fx.push({ kind: 'rift', line: best.line, dir: best.dir });
+        fx.push({ kind: 'rift', line: best.line, dir: best.dir, region: ev.region });
         return { at: first < 0 ? 0 : first,
-          message: 'A seam opened and ' + U.plural(gone, 'square') + ' fell into the sea. Roads home are shorter than they were.' };
+          message: 'A seam opened in ' + regionName(ev.region) + ' and ' + U.plural(gone, 'square') +
+            ' fell into the sea. Roads home are shorter than they were.' };
       }
     },
 
@@ -296,12 +298,15 @@ CF.events = (function () {
     return (a && b ? 10 : 0) + a + b;
   }
 
-  function seamScore(s, line, dir) {
-    // a seam is worth tearing if it carries a lot of somebody's supply
+  function seamScore(s, line, dir, region) {
+    // A seam is worth tearing if it carries a lot of somebody's supply in
+    // the place that was actually warned. Tiles outside it do not influence
+    // the choice and cannot be damaged by the resulting earthquake.
     var total = 0;
     for (var i = 0; i < s.tiles.length; i++) {
       var x = i % s.W, y = (i / s.W) | 0;
       if (dir === 'v' ? x !== line : y !== line) continue;
+      if (!inRegion(s, i, region)) continue;
       var t = s.tiles[i];
       if (!t.land) continue;
       if (t.capital) return -1;               // never cut through a capital
@@ -333,10 +338,14 @@ CF.events = (function () {
     return tpl ? tpl.warn(ev) : 'Something is coming.';
   }
 
+  // Events held by the designer pause remain due. Equality loses an event as
+  // soon as the turn advances, so every controller uses this overdue-safe test.
+  function isDue(ev, turn) { return !!ev && ev.fireTurn <= turn; }
+
   function nameOf(id) { return TEMPLATES[id] ? TEMPLATES[id].name : id; }
   function blurbOf(id) { return TEMPLATES[id] ? TEMPLATES[id].blurb : ''; }
   function all() { return Object.keys(TEMPLATES); }
 
-  return { TEMPLATES: TEMPLATES, REGIONS: REGIONS, apply: apply, warningFor: warningFor,
+  return { TEMPLATES: TEMPLATES, REGIONS: REGIONS, apply: apply, warningFor: warningFor, isDue: isDue,
            nameOf: nameOf, blurbOf: blurbOf, all: all, inRegion: inRegion, regionName: regionName };
 })();

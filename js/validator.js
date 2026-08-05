@@ -88,6 +88,18 @@ CF.validator = (function () {
     return la > lb ? 1 : 2;
   }
 
+  // Human choice changes what Cinder proposes, never whether the guardrails
+  // apply. Callers receive no event at all when an override is unsafe.
+  function approveOverride(state, proposal) {
+    var result = check(state, proposal);
+    return {
+      ok: result.ok,
+      ev: result.ok ? proposal : null,
+      fails: result.fails,
+      mainTarget: result.mainTarget || 0
+    };
+  }
+
   // The full gate: try the proposal, then a softened retry, then a
   // guaranteed-safe default. The game moves on no matter what.
   function gate(state, proposal, softenFn, defaultFn) {
@@ -107,5 +119,6 @@ CF.validator = (function () {
       note: 'both proposals refused (' + first.fails[0] + '); the safe default fired instead' };
   }
 
-  return { RULES: RULES, check: check, gate: gate, worstHit: worstHit };
+  return { RULES: RULES, check: check, approveOverride: approveOverride,
+           gate: gate, worstHit: worstHit };
 })();

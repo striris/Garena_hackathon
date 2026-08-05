@@ -339,30 +339,68 @@ CF.engine = (function () {
     });
 
     // --- 7. bookkeeping ---------------------------------------------------
+    function settledOrders(list, side) {
+      return list.map(function (o) {
+        return {
+          type: o.type,
+          from: o.from,
+          to: o.to,
+          cost: costOf(state, o.type),
+          targetElev: state.tiles[o.to] ? state.tiles[o.to].elev : 0,
+          targetOwner: state.tiles[o.to] ? state.tiles[o.to].owner : 0
+        };
+      });
+    }
+    function cutOffCount(side) {
+      var count = 0;
+      for (var ci = 0; ci < s.tiles.length; ci++) {
+        var ct = s.tiles[ci];
+        if (ct.land && ct.owner === side && s.supply[ci] !== side) count++;
+      }
+      return count;
+    }
     s.stats.push({
       turn: s.turn,
       raids: raidCounts[1] + raidCounts[2],
       captures: captures[1] + captures[2],
       landA: landCount(s, 1),
       landB: landCount(s, 2),
-      beacon: holder
+      incomeA: income(s, 1),
+      incomeB: income(s, 2),
+      cutOffA: cutOffCount(1),
+      cutOffB: cutOffCount(2),
+      beacon: holder,
+      beaconTile: state.beacon,
+      warningRegion: state.pending ? state.pending.region : null,
+      settledOrders: {
+        1: settledOrders(accepted[1], 1),
+        2: settledOrders(accepted[2], 2)
+      },
+      spent: { 1: spent[1], 2: spent[2] }
     });
 
     line.forEach(function (l) { s.feed.push({ turn: s.turn, cls: l.cls || '', text: l.text }); });
 
     // --- 8. victory -------------------------------------------------------
-    if (!s.over) s.over = checkVictory(s);
+    // The controller still has to fire any warned event after this turn.
+    // Resolve immediate wins here, but leave the turn-limit result until that
+    // event has had its promised chance to change the board.
+    if (!s.over) s.over = checkVictory(s, false);
 
     return { state: s, fx: fx, spent: spent, budget: budget };
   }
 
-  function checkVictory(s) {
+  function checkVictory(s, includeTurnLimit) {
     if (s.bp[1] >= BEACON_TO_WIN) return { winner: 1, why: 'The Ashfarers held the fire long enough to claim the ring.' };
     if (s.bp[2] >= BEACON_TO_WIN) return { winner: 2, why: 'The Saltkin held the fire long enough to claim the ring.' };
     var a = landCount(s, 1), b = landCount(s, 2);
     if (a < 1) return { winner: 2, why: 'The Ashfarers have no ground left.' };
     if (b < 1) return { winner: 1, why: 'The Saltkin have no ground left.' };
-    if (s.turn >= MAX_TURNS) {
+    // `turn` is the currently playable turn, not a count of completed turns.
+    // Using `turn >= MAX_TURNS` ended the match as soon as turn 25 was shown,
+    // leaving only 24 actionable turns. Stats get one entry per resolved turn,
+    // so they are the authoritative completion count.
+    if (includeTurnLimit !== false && s.stats.length >= MAX_TURNS) {
       if (a === b) return { winner: 0, why: 'Twenty-five turns, and the ring is split exactly. The mountain is unimpressed.' };
       return { winner: a > b ? 1 : 2, why: 'Twenty-five turns. ' + (a > b ? 'The Ashfarers' : 'The Saltkin') + ' hold the most ground: ' + Math.max(a, b) + ' to ' + Math.min(a, b) + '.' };
     }

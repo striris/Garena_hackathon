@@ -7,7 +7,7 @@
    the director, which is the part that is actually new.
    ============================================================ */
 CF.bot = (function () {
-  var U = CF.util, E = CF.engine;
+  var U = CF.util, E = CF.engine, EV = CF.events;
 
   var MOODS = ['aggressive', 'greedy', 'turtle'];
 
@@ -59,9 +59,20 @@ CF.bot = (function () {
     2: { soil: 2.7, height: 1.5 }
   };
 
-  function plan(state, side, forceTurtle) {
-    var mood = chooseMood(state, side, forceTurtle);
-    var w = WEIGHTS[mood];
+  function plan(state, side, forceTurtle, doctrine) {
+    var stanceMood = doctrine && doctrine.stance === 'ASSAULT' ? 'aggressive'
+      : doctrine && doctrine.stance === 'GROWTH' ? 'greedy'
+      : doctrine && doctrine.stance === 'FORTRESS' ? 'turtle' : null;
+    var mood = forceTurtle ? 'turtle' : (stanceMood || chooseMood(state, side, false));
+    var base = WEIGHTS[mood];
+    var w = { expand: base.expand, fortify: base.fortify, raid: base.raid, siege: base.siege };
+    if (doctrine) {
+      if (doctrine.objective === 'LAND') w.expand *= 1.3;
+      if (doctrine.objective === 'SUPPLY') { w.fortify *= 1.2; w.siege *= 1.2; }
+      if (doctrine.objective === 'CAPITAL') w.raid *= 1.25;
+      if (doctrine.risk === 'LOW') w.raid *= 0.75;
+      if (doctrine.risk === 'HIGH') w.raid *= 1.2;
+    }
     var taste = TASTE[side] || TASTE[1];
     var foe = side === 1 ? 2 : 1;
     var budget = E.income(state, side);
@@ -70,7 +81,14 @@ CF.bot = (function () {
     var bx = state.beacon % state.W, by = (state.beacon / state.W) | 0;
     function beaconPull(i) {
       var x = i % state.W, y = (i / state.W) | 0;
-      return 9 / (1 + Math.abs(x - bx) + Math.abs(y - by));
+      var value = 9 / (1 + Math.abs(x - bx) + Math.abs(y - by));
+      return doctrine && doctrine.objective === 'BEACON' ? value * 1.6 : value;
+    }
+
+    function regionPull(i) {
+      if (!doctrine || !doctrine.target_region) return 0;
+      var region = doctrine.target_region.toLowerCase();
+      return EV.inRegion(state, i, region) ? 6 : 0;
     }
 
     var mine = E.ownedTiles(state, side);
@@ -91,7 +109,7 @@ CF.bot = (function () {
         var gap = threat - E.defenceValue(state, from);
         cands.push({
           type: 'fortify', to: from,
-          score: (6 + Math.max(0, gap) * 2.2 + (from === state.beacon ? 9 : 0) + ft.fert) * w.fortify
+          score: (6 + Math.max(0, gap) * 2.2 + (from === state.beacon ? 9 : 0) + ft.fert + regionPull(from)) * w.fortify
         });
       }
 
@@ -105,7 +123,7 @@ CF.bot = (function () {
           cands.push({
             type: 'expand', to: i,
             score: (4 + t.fert * taste.soil + t.elev * taste.height + beaconPull(i) +
-                    (i === state.beacon ? 12 : 0)) * w.expand
+                    (i === state.beacon ? 12 : 0) + regionPull(i)) * w.expand
           });
         }
 
@@ -122,7 +140,7 @@ CF.bot = (function () {
             if (src != null) {
               var margin = E.attackValue(state, src, side) - def;
               // never throw squares away on an attack that cannot land
-              if (margin > 0) cands.push({ type: 'raid', to: i, score: (7 + margin * 1.5 + prize) * w.raid });
+              if (margin > 0) cands.push({ type: 'raid', to: i, score: (7 + margin * 1.5 + prize + regionPull(i)) * w.raid });
             }
           }
 
@@ -132,7 +150,7 @@ CF.bot = (function () {
           // moves again — a stalemate nobody chose and nobody can end.
           var deficit = def - (ft.str + 3 + E.stormSwing(state, side));
           if (deficit >= 0 && deficit < 7) {
-            cands.push({ type: 'fortify', to: from, score: (12 + prize - deficit * 1.5) * w.siege });
+            cands.push({ type: 'fortify', to: from, score: (12 + prize - deficit * 1.5 + regionPull(from)) * w.siege });
           }
         }
       }
@@ -171,7 +189,7 @@ CF.bot = (function () {
       }
     }
 
-    return { orders: orders, mood: mood, budget: budget, spent: spent };
+    return { orders: orders, mood: mood, budget: budget, spent: spent, doctrine: doctrine || null };
   }
 
   return { MOODS: MOODS, plan: plan, chooseMood: chooseMood };
