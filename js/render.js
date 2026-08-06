@@ -77,6 +77,29 @@ CF.render = (function () {
     return { x: r.x + r.s / 2, y: r.y + r.s / 2 };
   }
 
+  function ownershipInsets(index, owner) {
+    var W = state.W, x = index % W, y = (index / W) | 0;
+    var edge = Math.max(2, Math.floor(geom.ts * 0.14));
+    function linked(neighbor) {
+      return neighbor && neighbor.land && neighbor.owner === owner;
+    }
+    return {
+      left: linked(x > 0 ? state.tiles[index - 1] : null) ? 0 : edge,
+      right: linked(x < W - 1 ? state.tiles[index + 1] : null) ? 0 : edge,
+      top: linked(y > 0 ? state.tiles[index - W] : null) ? 0 : edge,
+      bottom: linked(y < state.H - 1 ? state.tiles[index + W] : null) ? 0 : edge
+    };
+  }
+
+  function ownershipPath(r, insets) {
+    ctx.beginPath();
+    ctx.moveTo(r.x + insets.left, r.y + insets.top);
+    ctx.lineTo(r.x + r.s - insets.right, r.y + insets.top);
+    ctx.lineTo(r.x + r.s - insets.right, r.y + r.s - insets.bottom);
+    ctx.lineTo(r.x + insets.left, r.y + r.s - insets.bottom);
+    ctx.closePath();
+  }
+
   function push(fx) {
     if (!fx || !state) return;
     fx.forEach(function (f) {
@@ -392,19 +415,26 @@ CF.render = (function () {
   function drawTileOwnership(r, tile, index) {
     if (!tile.owner) return;
     var col = sideColor(tile.owner), deep = sideDeep(tile.owner);
+    var insets = ownershipInsets(index, tile.owner);
     var og = ctx.createLinearGradient(r.x, r.y, r.x + r.s, r.y + r.s);
     og.addColorStop(0, hexA(col, 0.15));
     og.addColorStop(1, hexA(deep, 0.26));
     ctx.fillStyle = og;
-    ctx.fillRect(r.x, r.y, r.s, r.s);
+    ownershipPath(r, insets);
+    ctx.fill();
     ctx.strokeStyle = hexA(col, 0.5);
     ctx.lineWidth = 1.1;
-    ctx.strokeRect(r.x + 1.2, r.y + 1.2, r.s - 2.4, r.s - 2.4);
+    ownershipPath(r, {
+      left: insets.left + 0.6,
+      right: insets.right + 0.6,
+      top: insets.top + 0.6,
+      bottom: insets.bottom + 0.6
+    });
+    ctx.stroke();
 
     if (state.supply[index] !== tile.owner && tile.owner !== 3 && !tile.capital) {
       ctx.save();
-      ctx.beginPath();
-      ctx.rect(r.x, r.y, r.s, r.s);
+      ownershipPath(r, insets);
       ctx.clip();
       ctx.strokeStyle = 'rgba(130,37,24,0.55)';
       ctx.lineWidth = 1.5;
