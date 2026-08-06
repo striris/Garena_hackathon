@@ -17,7 +17,7 @@ from ai_service import AIService, AIServiceError
 ROOT = Path(__file__).resolve().parent
 MAX_BODY = 512 * 1024
 PUBLIC_FILES = {"/", "/index.html"}
-PUBLIC_PREFIXES = ("/css/", "/js/")
+PUBLIC_PREFIXES = ("/css/", "/js/", "/assets/")
 
 
 def load_env_file(path: Path) -> None:
@@ -72,7 +72,7 @@ class CinderfallHandler(SimpleHTTPRequestHandler):
             return True
         return (path.startswith("/js/") and path.endswith(".js")) or (
             path.startswith("/css/") and path.endswith(".css")
-        )
+        ) or path.startswith("/assets/")
 
     def do_GET(self) -> None:  # noqa: N802 - stdlib handler API
         path = self._path()
