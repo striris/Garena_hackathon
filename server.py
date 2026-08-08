@@ -86,7 +86,7 @@ class CinderfallHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802 - stdlib handler API
         path = self._path()
-        if path not in {"/api/ai/saltkin", "/api/ai/director"}:
+        if path not in {"/api/ai/saltkin", "/api/ai/director", "/api/ai/mock-player"}:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
 
@@ -101,7 +101,12 @@ class CinderfallHandler(SimpleHTTPRequestHandler):
 
         try:
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
-            result = self.ai_service.saltkin(payload) if path.endswith("/saltkin") else self.ai_service.director(payload)
+            if path.endswith("/saltkin"):
+                result = self.ai_service.saltkin(payload)
+            elif path.endswith("/mock-player"):
+                result = self.ai_service.mock_player(payload)
+            else:
+                result = self.ai_service.director(payload)
             self._json(HTTPStatus.OK, result)
         except (json.JSONDecodeError, UnicodeDecodeError):
             self._json(HTTPStatus.BAD_REQUEST, {"error": {"code": "invalid_json", "message": "Request body must be valid UTF-8 JSON"}})

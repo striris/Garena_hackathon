@@ -41,6 +41,10 @@ CF.ai = (function () {
         });
     }).catch(function (err) {
       if (err && err.name === 'AbortError') throw failure('timeout', 'AI request exceeded ' + timeoutMs + 'ms');
+      // A native fetch TypeError means the browser never received an HTTP
+      // response at all (for example after a local server restart). Preserve
+      // that distinction instead of presenting it as a model failure.
+      if (err && !err.code) throw failure('network_error', 'Could not reach the local AI service');
       throw err;
     }).finally(function () { clearTimeout(timer); });
   }
@@ -68,6 +72,7 @@ CF.ai = (function () {
     configure: configure,
     health: health,
     saltkin: function (payload) { return post('/api/ai/saltkin', payload); },
+    mockPlayer: function (payload) { return post('/api/ai/mock-player', payload); },
     director: function (payload) { return post('/api/ai/director', payload); },
     setFailure: function (value) { simulateFailure = !!value; },
     get simulateFailure() { return simulateFailure; }

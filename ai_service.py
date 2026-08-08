@@ -15,9 +15,13 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parent
-DEFAULT_BASE_URL = "https://api.aiand.com/v1"
-DEFAULT_MODEL = "openai/gpt-oss-120b"
+DEFAULT_BASE_URL = "https://api.siliconflow.cn/v1"
+DEFAULT_MODEL = "moonshotai/Kimi-K2.7-Code"
 DEFAULT_TIMEOUT_SECONDS = 15.0
+# Doctrine calls only need seven short fields.  A small completion budget keeps
+# an interactive Mock turn responsive even when the configured model is a
+# code-oriented model with a large default generation allowance.
+MAX_DOCTRINE_TOKENS = 160
 
 STANCES = {"ASSAULT", "GROWTH", "FORTRESS"}
 OBJECTIVES = {"BEACON", "LAND", "SUPPLY", "CAPITAL"}
@@ -247,6 +251,8 @@ class AIService:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
+                max_tokens=MAX_DOCTRINE_TOKENS,
+                temperature=0.2,
             )
         except Exception as exc:
             name = type(exc).__name__
@@ -273,6 +279,26 @@ class AIService:
         if not isinstance(request.get("matchId"), str) or not isinstance(request.get("snapshotTurn"), int):
             raise AIServiceError("invalid_request", "matchId and integer snapshotTurn are required", 400)
         raw, meta = self._complete("ai/prompts/saltkin.md", "ai/schemas/saltkin.json", request)
+        return {
+            "decision": validate_saltkin(raw, request),
+            "meta": meta,
+            "matchId": request.get("matchId"),
+            "snapshotTurn": request.get("snapshotTurn"),
+        }
+
+    def mock_player(self, payload: Any) -> dict[str, Any]:
+        """Use the configured LLM to drive the visible Ashfarer test player.
+
+        The model chooses only a doctrine.  Tile targeting, costs and order
+        legality remain in the deterministic browser bot, exactly as they do
+        for Saltkin, so the test control cannot create an illegal advantage.
+        """
+        request = _require_object(payload, "request")
+        if _contains_private_order_queue(request):
+            raise AIServiceError("private_orders_forbidden", "Mock player requests cannot contain an order queue", 400)
+        if not isinstance(request.get("matchId"), str) or not isinstance(request.get("snapshotTurn"), int):
+            raise AIServiceError("invalid_request", "matchId and integer snapshotTurn are required", 400)
+        raw, meta = self._complete("ai/prompts/mock_player.md", "ai/schemas/saltkin.json", request)
         return {
             "decision": validate_saltkin(raw, request),
             "meta": meta,

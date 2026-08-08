@@ -128,8 +128,8 @@ async function main() {
     const value = result.result.value;
     const ok = value.queued.commands === '2' && value.queued.available === '8' &&
       value.queued.income === '8' && value.queued.reserve === '0' &&
-      value.queued.spent === '6' && value.queued.mobilizationVisible &&
-      value.queued.supportEnabled && value.queued.supportLabel.includes('MARCH SUPPLY') &&
+      value.queued.spent === '6' && !value.queued.mobilizationVisible &&
+      value.queued.supportEnabled && value.queued.supportLabel.includes('CLAIM COMBO') &&
       value.supportedSpent === '8' && value.secondStrength === 2 &&
       value.supportResolved === 'march' && value.resolvedSpent === 8 && value.reserveAfter === 0;
     console.log(JSON.stringify(value, null, 2));

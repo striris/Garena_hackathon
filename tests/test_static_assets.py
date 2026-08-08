@@ -77,16 +77,30 @@ class StaticAssetTests(unittest.TestCase):
         self.assertEqual(self.html.count('class="slide'), 6)
         self.assertIn('id="intro-back"', self.html)
         self.assertIn('id="intro-progress"', self.html)
-        self.assertIn('id="btn-tutorial"', self.html)
+        self.assertIn('id="settings-tutorial"', self.html)
         self.assertIn("READ THE RING", self.html)
-        self.assertIn("FUND A TURN", self.html)
-        self.assertIn("COMMIT THE EFFORT", self.html)
-        self.assertIn("BREAK AND CUT", self.html)
+        self.assertIn("PLAN A TURN", self.html)
+        self.assertIn("CHOOSE A FRONT", self.html)
+        self.assertIn("RESOLVE AND SURVIVE", self.html)
         self.assertIn("CINDER AND VICTORY", self.html)
         self.assertIn("setScene: setScene", self.intro)
+        self.assertIn("var slides = [allSlides[0], allSlides[1], allSlides[2], allSlides[4]];", self.main)
+        self.assertIn("+slides[slide].dataset.slide", self.main)
+        self.assertEqual(self.html.count('class="dot-nav'), 4)
         self.assertIn("@keyframes command-commit", self.css)
         self.assertIn("@keyframes attack-dash", self.css)
         self.assertIn("prefers-reduced-motion", self.css)
+
+    def test_every_tutorial_translation_key_has_english_and_chinese_copy(self):
+        keys = set(re.findall(r'data-i18n="(intro\.[^"]+)"', self.html))
+        for key in keys:
+            self.assertIn("'" + key + "':", self.main, key)
+        # Both language objects use the same tutorial vocabulary. The Chinese
+        # copies below deliberately include the full rule pages, not only the
+        # three pages that the earlier quick-start exposed.
+        self.assertIn("'intro.economy.kicker': '2 / 3 · 规划本回合'", self.main)
+        self.assertIn("'intro.effort.kicker': '3 / 5 · 选择战线'", self.main)
+        self.assertIn("'intro.combat.kicker': '3 / 3 · 同步结算与生存'", self.main)
 
     def test_ai_thinking_locks_mutating_controls_and_invalidates_old_runs(self):
         self.assertIn('id="ai-thinking"', self.html)
@@ -99,6 +113,11 @@ class StaticAssetTests(unittest.TestCase):
         self.assertIn("if (interactionLocked() || game.over) return;", self.main)
         self.assertIn("position:fixed", self.css)
 
+    def test_director_has_a_short_interaction_budget_and_late_reply_guard(self):
+        self.assertIn("code: 'interaction_budget'", self.main)
+        self.assertIn("}, 5000);", self.main)
+        self.assertIn("if (settled || !isCurrentRun(run)) return;", self.main)
+
     def test_map_previews_legal_targets_and_flashes_invalid_clicks(self):
         self.assertIn("setLegalTargets: setLegalTargets", self.render)
         self.assertIn("function legalTargetsForTool()", self.main)
@@ -106,16 +125,18 @@ class StaticAssetTests(unittest.TestCase):
         self.assertIn('class="order-remove"', self.main)
 
     def test_field_commands_constrain_expansion_and_redeployment(self):
-        self.assertIn("var FIELD_COMMANDS = 2;", self.engine)
+        self.assertIn("var FIELD_COMMANDS = 3;", self.engine)
+        self.assertIn("raid: 1", self.engine)
+        self.assertIn("function fieldCommands(state)", self.engine)
         self.assertIn("type === 'expand' || type === 'raid' || type === 'fortify'", self.engine)
         self.assertIn("commandPreview: commandPreview", self.engine)
         self.assertIn("provisionalExpands", self.engine)
-        self.assertIn("Expand, Raid, and Fortify share two field commands", self.saltkin_prompt)
+        self.assertIn("two clear fronts: NORTH and SOUTH", self.saltkin_prompt)
 
-    def test_income_funds_mobilization_reserve_and_support(self):
-        self.assertIn("var MOBILIZATION_COST = 2;", self.engine)
+    def test_income_funds_reserve_and_support_without_second_move_tax(self):
+        self.assertIn("var MOBILIZATION_COST = 0;", self.engine)
         self.assertIn("var SUPPORT_COST = 2;", self.engine)
-        self.assertIn("var RESERVE_CAP = 6;", self.engine)
+        self.assertIn("var RESERVE_CAP = 8;", self.engine)
         self.assertIn("availableBudget: availableBudget", self.engine)
         self.assertIn("supportType: supportType, planCost: planCost", self.engine)
         self.assertIn('id="btn-support"', self.html)

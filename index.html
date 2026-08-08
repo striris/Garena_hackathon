@@ -16,30 +16,54 @@
       <div class="brand-mark"></div>
       <div class="brand-text">
         <h1>CINDERFALL</h1>
-        <span>a world that refuses to sit still</span>
+        <span data-i18n="brand.tagline">a world that refuses to sit still</span>
       </div>
     </div>
 
     <div class="clock">
-      <div class="clock-turn"><em id="hud-turn">1</em><span>/ 25 turns</span></div>
-      <div class="clock-season">SEASON <b id="hud-season">0</b></div>
+      <div class="clock-turn"><em id="hud-turn">1</em><span data-i18n="hud.turns">/ 25 turns</span></div>
+      <div class="clock-season"><span data-i18n="hud.season">SEASON</span> <b id="hud-season">0</b></div>
     </div>
 
     <div class="scores">
       <div class="score side-a">
-        <div class="score-head"><i></i><span>ASHFARERS</span><b id="hud-a-land">0</b><small>land</small></div>
+        <div class="score-head"><i></i><span>ASHFARERS</span><b id="hud-a-land">0</b><small data-i18n="hud.land">land</small></div>
         <div class="bp-track" title="Beacon Points — 10 to win">
           <div class="bp-fill" id="hud-a-bp"></div>
           <span class="bp-label" id="hud-a-bplabel">0 / 10</span>
         </div>
       </div>
       <div class="score side-b">
-        <div class="score-head"><i></i><span>SALTKIN</span><b id="hud-b-land">0</b><small>land</small></div>
+        <div class="score-head"><i></i><span>SALTKIN</span><b id="hud-b-land">0</b><small data-i18n="hud.land">land</small></div>
         <div class="bp-track" title="Beacon Points — 10 to win">
           <div class="bp-fill" id="hud-b-bp"></div>
           <span class="bp-label" id="hud-b-bplabel">0 / 10</span>
         </div>
       </div>
+    </div>
+
+    <div class="top-actions">
+      <button id="btn-settings" class="settings-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="settings-menu">
+        <span class="settings-icon" aria-hidden="true">⚙</span><span data-i18n="settings.button">SETTINGS</span>
+      </button>
+      <section id="settings-menu" class="settings-menu hidden" role="menu" aria-label="Game settings">
+        <div class="settings-title" data-i18n="settings.title">GAME SETTINGS</div>
+        <button id="settings-tutorial" class="settings-guide" type="button" role="menuitem">
+          <span aria-hidden="true">▶</span><span data-i18n="settings.guide">REPLAY GAME GUIDE</span>
+        </button>
+        <p class="settings-copy" data-i18n="settings.guideCopy">Reopen the short, visual guide at any time.</p>
+        <label class="settings-field" for="settings-language">
+          <span data-i18n="settings.language">LANGUAGE</span>
+          <span class="settings-select">
+            <select id="settings-language" aria-label="Language">
+              <option value="en">English</option>
+              <option value="zh">简体中文</option>
+            </select>
+            <i aria-hidden="true">▾</i>
+          </span>
+        </label>
+        <p class="settings-copy" data-i18n="settings.languageCopy">Changes the core game interface. AI and match records retain their original language.</p>
+      </section>
     </div>
   </header>
 
@@ -59,20 +83,32 @@
 
       <div id="canvas-wrap">
         <canvas id="map"></canvas>
+        <div id="route-guides" aria-hidden="true">
+          <div id="route-guide-north" class="route-guide north"></div>
+          <div id="route-guide-south" class="route-guide south"></div>
+        </div>
+        <div id="map-legend" aria-label="Map legend">
+          <span><i class="legend-legal"></i><b data-i18n="map.legal">glow = can act</b></span>
+          <span><i class="legend-relay">◇</i><b data-i18n="map.relay">Relay = cut supply</b></span>
+          <span><i class="legend-beacon">★</i><b data-i18n="map.beacon">Beacon = score</b></span>
+        </div>
         <div id="tooltip" class="hidden"></div>
         <div id="banner" class="hidden"><div class="banner-in"><h2 id="banner-title"></h2><p id="banner-sub"></p></div></div>
         <div id="gameover" class="hidden"><div class="go-in"><h2 id="go-title"></h2><p id="go-sub"></p><button id="go-again" class="btn primary">NEW RING</button></div></div>
       </div>
 
-      <div id="feed"></div>
+      <section id="feed" aria-label="Battle updates">
+        <div id="current-task" role="status" aria-live="polite"></div>
+        <div id="feed-log" aria-label="Battle log"></div>
+      </section>
 
     </section>
 
     <aside id="rail">
 
       <nav class="tabs" role="tablist" aria-label="Game panels">
-        <button class="tab active" data-tab="orders" role="tab" aria-selected="true">ORDERS</button>
-        <button class="tab" data-tab="chronicle" role="tab" aria-selected="false">CHRONICLE</button>
+        <button class="tab active" data-tab="orders" role="tab" aria-selected="true" data-i18n="tabs.orders">ORDERS</button>
+        <button class="tab" data-tab="chronicle" role="tab" aria-selected="false" data-i18n="tabs.chronicle">CHRONICLE</button>
         <button class="tab" data-tab="console" role="tab" aria-selected="false">CINDER</button>
       </nav>
 
@@ -80,49 +116,58 @@
       <div class="panel active" id="tab-orders">
         <div class="treasury">
           <div class="tre-row">
-            <span>AVAILABLE</span>
+            <span data-i18n="orders.available">AVAILABLE</span>
             <b id="hud-income">0</b>
           </div>
           <div class="spend-track"><div class="spend-fill" id="hud-spendfill"></div></div>
           <div class="tre-row small">
-            <span>spent <b id="hud-spent">0</b></span>
-            <span>left <b id="hud-left">0</b></span>
+            <span><span data-i18n="orders.spent">spent</span> <b id="hud-spent">0</b></span>
+            <span><span data-i18n="orders.unspent">unspent</span> <b id="hud-left">0</b></span>
           </div>
           <div class="tre-row small reserve-row">
-            <span>income <b id="hud-gross">0</b></span>
-            <span>reserve <b id="hud-reserve">0</b> / 6</span>
+            <span><span data-i18n="orders.income">income</span> <b id="hud-gross">0</b></span>
+            <span><span data-i18n="orders.reserve">reserve</span> <b id="hud-reserve">0</b> / 8</span>
           </div>
           <div class="tre-row small command-row">
-            <span>FIELD COMMANDS <b id="hud-command-used">0</b> / 2</span>
-            <span>free <b id="hud-command-left">2</b></span>
+            <span><span data-i18n="orders.moves">MOVES</span> <b id="hud-command-used">0</b> / <b id="hud-command-max">3</b></span>
+            <span><span data-i18n="orders.left">left</span> <b id="hud-command-left">3</b></span>
           </div>
         </div>
 
+        <div id="opening-brief" class="opening-brief hidden" aria-live="polite"></div>
         <div id="player-effort" class="effort-status">OPENING CALL</div>
-        <div id="saltkin-intent" class="ai-intent">SALTKIN AI · heuristic doctrine</div>
-        <button id="btn-tutorial" class="mini tutorial-replay">HOW TO PLAY</button>
+        <div class="quick-guide" aria-label="Quick play guide">
+          <span data-i18n="guide.glow">① glow = act</span>
+          <span data-i18n="guide.supply">② stay connected</span>
+          <span data-i18n="guide.goal">③ Relay cuts · Beacon wins</span>
+        </div>
+        <section id="mock-result" class="mock-result hidden" aria-live="polite">
+          <div class="mock-result-head"><b id="mock-result-title">MOCK PLAYER</b><span id="mock-result-source"></span></div>
+          <p id="mock-result-intent"></p>
+          <p id="mock-result-orders"></p>
+        </section>
+        <div id="saltkin-intent" class="ai-intent hidden" aria-live="polite">SALTKIN AI · heuristic doctrine</div>
 
         <div class="tools">
           <button class="tool active" data-tool="expand" aria-pressed="true">
-            <kbd>1</kbd><span class="tname">EXPAND</span><span class="tcost" id="cost-expand">2</span>
-            <em>claim empty land beside you</em>
+            <kbd>1</kbd><span class="tname" data-i18n="tool.claim">CLAIM</span><span class="tcost" id="cost-expand">3</span>
+            <em data-i18n="tool.claimHint">take an empty tile beside you</em>
           </button>
           <button class="tool" data-tool="fortify" aria-pressed="false">
-            <kbd>2</kbd><span class="tname">FORTIFY</span><span class="tcost" id="cost-fortify">2</span>
-            <em>+1 strength, supplied only, cap 6</em>
+            <kbd>2</kbd><span class="tname" data-i18n="tool.hold">HOLD</span><span class="tcost" id="cost-fortify">2</span>
+            <em data-i18n="tool.holdHint">make one supplied tile stronger</em>
           </button>
           <button class="tool" data-tool="raid" aria-pressed="false">
-            <kbd>3</kbd><span class="tname">RAID</span><span class="tcost" id="cost-raid">3</span>
-            <em>strike an enemy square beside you</em>
+            <kbd>3</kbd><span class="tname" data-i18n="tool.attack">ATTACK</span><span class="tcost" id="cost-raid">1</span>
+            <em data-i18n="tool.attackHint">take an enemy tile beside you</em>
+          </button>
+          <button id="btn-support" class="tool combo-tool" type="button" disabled aria-pressed="false">
+            <kbd>4</kbd><span class="tname" data-i18n="tool.combo">COMBO</span><span class="tcost" id="cost-support">+2</span>
+            <em id="support-hint" data-i18n="tool.comboHint">unlock with two linked actions</em>
           </button>
         </div>
 
-        <button id="btn-support" class="support-btn" disabled>
-          <b>OPERATION SUPPORT · +2</b>
-          <span>Queue a chained Expand or coordinated Raid</span>
-        </button>
-
-        <div class="orders-head"><span>QUEUED</span><button id="btn-clear" class="mini">clear</button></div>
+        <div class="orders-head"><span data-i18n="orders.queued">QUEUED</span><button id="btn-clear" class="mini" data-i18n="orders.clear">clear</button></div>
         <ul id="orderlist"></ul>
 
         <div class="mods" id="modlist"></div>
@@ -132,71 +177,66 @@
 
       <!-- ---------- CHRONICLE ---------- -->
       <div class="panel" id="tab-chronicle">
-        <p class="panel-note">Every season the mountain acts, and every season it says why. Predictions are scored against what actually happened.</p>
+        <p class="panel-note" data-i18n="chronicle.note">Every season the mountain acts, and every season it says why. Predictions are scored against what actually happened.</p>
         <div id="chronicle"></div>
       </div>
 
       <!-- ---------- CONSOLE ---------- -->
       <div class="panel" id="tab-console">
-        <p class="panel-note">Designer audit console. Two goal-limited AIs propose — deterministic code approves — a human can override safely.</p>
-
         <div class="con-block">
-          <div class="con-title">AI RUNTIME</div>
-          <div id="con-ai-status" class="ai-status">CHECKING</div>
-        </div>
-
-        <div class="con-block">
-          <div class="con-title">SALTKIN DOCTRINE</div>
-          <pre id="con-doctrine">heuristic fallback</pre>
-        </div>
-
-        <div class="con-block">
-          <div class="con-title">PLAYER PROFILE · RESOLVED HISTORY ONLY</div>
-          <pre id="con-profile">no resolved turns yet</pre>
-        </div>
-
-        <div class="con-block">
-          <div class="con-title">CURRENT READING</div>
+          <div class="con-title" data-i18n="cinder.reading">CURRENT READING</div>
           <pre id="con-report">Cinder is asleep. It wakes at the end of turn 3.</pre>
         </div>
 
         <div class="con-block">
-          <div class="con-title">DECISION EVIDENCE</div>
+          <div class="con-title" data-i18n="cinder.evidence">DECISION EVIDENCE</div>
           <div id="con-reason" class="reason">—</div>
         </div>
 
         <div class="con-block">
-          <div class="con-title">COUNTERFACTUAL CANDIDATES · SHADOW BASELINE</div>
+          <div class="con-title" data-i18n="cinder.candidates">COUNTERFACTUAL CANDIDATES · SHADOW BASELINE</div>
           <pre id="con-candidates">no season evaluated yet</pre>
         </div>
 
         <div class="con-block">
-          <div class="con-title">PENDING EVENT</div>
+          <div class="con-title" data-i18n="cinder.pending">PENDING EVENT</div>
           <div id="con-pending" class="pending">none</div>
           <div class="con-row">
             <select id="con-override"></select>
             <select id="con-intensity">
               <option value="1">I</option><option value="2" selected>II</option><option value="3">III</option>
             </select>
-            <button id="con-apply" class="mini solid">OVERRIDE</button>
+            <button id="con-apply" class="mini solid" data-i18n="cinder.override">OVERRIDE</button>
           </div>
         </div>
 
         <div class="con-block">
-          <div class="con-title">CONTROLS</div>
-          <label class="chk"><input type="checkbox" id="con-pause"> pause the director</label>
-          <label class="chk"><input type="checkbox" id="con-turtle"> force stalemate <em>(both sides turtle)</em></label>
-          <label class="chk"><input type="checkbox" id="con-ai-fail"> simulate AI failure <em>(3s → FALLBACK)</em></label>
+          <div class="con-title" data-i18n="cinder.controls">CONTROLS</div>
+          <label class="chk"><input type="checkbox" id="con-pause"> <span data-i18n="cinder.pause">pause the director</span></label>
+          <label class="chk"><input type="checkbox" id="con-turtle"> <span data-i18n="cinder.turtle">force stalemate (both sides turtle)</span></label>
+          <label class="chk"><input type="checkbox" id="con-ai-fail"> <span data-i18n="cinder.fail">simulate AI failure (3s → FALLBACK)</span></label>
           <div class="con-row">
-            <button id="con-fire" class="mini">fire now</button>
-            <button id="con-new" class="mini">new ring</button>
-            <button id="con-clear-memory" class="mini">clear player memory</button>
+            <button id="con-fire" class="mini" data-i18n="cinder.fire">fire now</button>
+            <button id="con-new" class="mini" data-i18n="cinder.new">new ring</button>
+            <button id="con-clear-memory" class="mini" data-i18n="cinder.clearMemory">clear player memory</button>
           </div>
         </div>
 
         <div class="con-block">
-          <div class="con-title">TEMPLATE MEMORY</div>
+          <div class="con-title" data-i18n="cinder.mockTitle">MOCK PLAYER · LLM TEST</div>
+          <p class="panel-note" data-i18n="cinder.mockNote">Ask the configured LLM for an Ashfarer doctrine. The legal bot turns it into a visible, valid queue; it never bypasses rules.</p>
+          <button id="con-mock" class="mini solid" data-i18n="cinder.mockButton">MOCK LLM MOVE</button>
+          <div id="con-mock-status" class="reason">ready — no mock move queued</div>
+        </div>
+
+        <div class="con-block">
+          <div class="con-title" data-i18n="cinder.memory">TEMPLATE MEMORY</div>
           <div id="con-memory" class="memory">no history yet</div>
+        </div>
+
+        <div class="con-block">
+          <div class="con-title" data-i18n="cinder.profile">PLAYER PROFILE · RESOLVED HISTORY ONLY</div>
+          <pre id="con-profile">no resolved turns yet</pre>
         </div>
       </div>
 
@@ -227,68 +267,73 @@
 <div id="intro">
   <canvas id="introcanvas"></canvas>
 
-  <button id="intro-skip" class="skip">SKIP <kbd>ESC</kbd></button>
+  <button id="intro-skip" class="skip"><span data-i18n="intro.skip">SKIP</span> <kbd>ESC</kbd></button>
 
   <div class="intro-stage">
 
     <!-- 1. the world, mostly seen rather than read -->
     <section class="slide active" data-slide="0">
       <div class="hero">
-        <div class="hero-kicker">GARENA AI BUILD CHALLENGE · 2026</div>
+        <div class="hero-kicker" data-i18n="intro.hero.kicker">THE ASH RING · SEASON 1</div>
         <h1 class="hero-title">CINDERFALL</h1>
         <div class="hero-rule"></div>
-        <p class="hero-line">A world that refuses to sit still.</p>
+        <p class="hero-line" data-i18n="intro.hero.line">A world that refuses to sit still.</p>
         <p class="hero-sub">
-          Two peoples fight across a ladder-shaped ring of islands.<br>
-          Underneath them, the mountain that made the land is still working —
-          and what it cannot stand is a quiet front.
+          <span data-i18n="intro.hero.sub1">Take land, cut a Relay, then keep the Beacon supplied.</span><br>
+          <span data-i18n="intro.hero.sub2">Cinder reads the battle and reshapes the next opportunity fairly.</span>
         </p>
         <div class="hero-legend">
-          <span><i class="dot jade"></i>ASHFARERS · you</span>
-          <span><i class="dot molten"></i>SALTKIN · the rival</span>
-          <span><i class="dot fire"></i>CINDER · the world itself</span>
+          <span><i class="dot jade"></i><b>ASHFARERS</b><em data-i18n="intro.hero.you">· you</em></span>
+          <span><i class="dot molten"></i><b>SALTKIN</b><em data-i18n="intro.hero.rival">· the rival</em></span>
+          <span><i class="dot fire"></i><b>CINDER</b><em data-i18n="intro.hero.world">· the world itself</em></span>
         </div>
-        <div class="intro-length">6 short scenes · about 2 minutes · replay any time</div>
       </div>
     </section>
 
     <!-- 2. read the map -->
     <section class="slide" data-slide="1">
       <div class="sheet lesson-sheet">
-        <div class="sheet-kicker">1 / 5 · READ THE RING</div>
-        <h2>Two fronts. Two cross-bridges. One enemy rear.</h2>
+        <div class="sheet-kicker" data-i18n="intro.map.kicker">1 / 3 · READ THE FIELD</div>
+        <h2 data-i18n="intro.map.title">Two fronts. One clear objective.</h2>
         <div class="lesson-layout">
           <div class="lesson-visual ladder-lesson">
-            <svg viewBox="0 0 520 245" role="img" aria-label="Two-route ladder map with cross-bridges">
+            <svg viewBox="0 0 520 245" role="img" aria-label="Two-front map with Relays and a Beacon">
               <path class="demo-route north" d="M66 62 H454"></path>
               <path class="demo-route south" d="M66 183 H454"></path>
-              <path class="demo-bridge" d="M190 62 V183 M330 62 V183"></path>
               <g class="demo-nodes">
                 <rect class="demo-cap ash" x="42" y="41" width="48" height="42"></rect>
                 <rect x="165" y="41" width="50" height="42"></rect>
-                <rect class="relay" x="305" y="41" width="50" height="42"></rect>
+                <rect class="relay" x="305" y="41" width="23" height="42"></rect>
+                <rect class="relay" x="332" y="41" width="23" height="42"></rect>
                 <rect class="demo-cap salt" x="430" y="41" width="48" height="42"></rect>
                 <rect class="demo-cap ash" x="42" y="162" width="48" height="42"></rect>
-                <rect class="relay" x="165" y="162" width="50" height="42"></rect>
+                <rect class="relay" x="165" y="162" width="23" height="42"></rect>
+                <rect class="relay" x="192" y="162" width="23" height="42"></rect>
                 <rect x="305" y="162" width="50" height="42"></rect>
                 <rect class="demo-cap salt" x="430" y="162" width="48" height="42"></rect>
               </g>
               <text x="38" y="28">ASHFARERS</text><text x="401" y="28">SALTKIN</text>
-              <text x="217" y="52">NORTH · HIGH / SHORT</text>
-              <text x="209" y="176">SOUTH · FERTILE / LONG</text>
-              <text class="relay-label" x="302" y="107">RELAY</text>
-              <path id="flank-path" d="M76 62 H330 V183 H388" fill="none"></path>
+              <g class="demo-route-label north">
+                <rect x="184" y="4" width="152" height="24"></rect>
+                <text x="260" y="16" text-anchor="middle" data-i18n="intro.map.north">NORTH ROUTE</text>
+              </g>
+              <g class="demo-route-label south">
+                <rect x="184" y="214" width="152" height="24"></rect>
+                <text x="260" y="226" text-anchor="middle" data-i18n="intro.map.south">SOUTH ROUTE</text>
+              </g>
+              <text class="relay-label" x="278" y="107" data-i18n="intro.map.relay">RELAY PAIR</text>
+              <text class="beacon-label" x="237" y="136" data-i18n="intro.map.beacon">★ BEACON</text>
+              <path id="advance-path" d="M76 62 H388" fill="none"></path>
               <circle class="demo-scout" r="9">
-                <animateMotion dur="5s" repeatCount="indefinite"><mpath href="#flank-path"></mpath></animateMotion>
+                <animateMotion dur="5s" repeatCount="indefinite"><mpath href="#advance-path"></mpath></animateMotion>
               </circle>
             </svg>
-            <div class="visual-caption">Break NORTH → cross at the eastern bridge → enter the SOUTH rear.</div>
+            <div class="visual-caption" data-i18n="intro.map.caption">Choose a front → contest its Relay → keep the Beacon supplied.</div>
           </div>
           <div class="lesson-copy">
-            <div class="rule-step"><b>Choose a front.</b><span>The high route is shorter; the fertile route pays more income.</span></div>
-            <div class="rule-step"><b>Use bridges to flank.</b><span>A cross-bridge is not a third capital route. It lets a breakthrough reach the other front's rear.</span></div>
-            <div class="rule-step"><b>Take the Relay.</b><span>Each bridge lands on a two-tile Supply Relay. It is a tactical objective, not an income tile.</span></div>
-            <div class="rule-step beacon-step"><b>Watch the Beacon.</b><span>Both capitals begin equally far from its opening route.</span></div>
+            <div class="rule-step"><b data-i18n="intro.map.step1.title">Choose a front.</b><span data-i18n="intro.map.step1.body">North and South use the same rules. The opening flame marks a shared early Supply bonus.</span></div>
+            <div class="rule-step"><b data-i18n="intro.map.step2.title">Race for the Relay.</b><span data-i18n="intro.map.step2.body">Taking both Relay squares can cut that enemy front off from Supply.</span></div>
+            <div class="rule-step beacon-step"><b data-i18n="intro.map.step3.title">Hold the Beacon.</b><span data-i18n="intro.map.step3.body">A Beacon only scores while it stays connected to your capital.</span></div>
           </div>
         </div>
       </div>
@@ -297,27 +342,20 @@
     <!-- 3. fund a turn -->
     <section class="slide" data-slide="2">
       <div class="sheet lesson-sheet">
-        <div class="sheet-kicker">2 / 5 · FUND A TURN</div>
-        <h2>Income buys action quality, not extra commands.</h2>
+        <div class="sheet-kicker" data-i18n="intro.economy.kicker">2 / 3 · PLAN A TURN</div>
+        <h2 data-i18n="intro.economy.title">Every turn has Supply and Moves.</h2>
         <div class="lesson-layout">
-          <div class="lesson-visual economy-lesson">
-            <div class="income-readout"><span>SUPPLIED FERTILITY</span><b>8</b><i>income</i></div>
-            <div class="command-demo">
-              <div class="command-token first"><b>1</b><span>EXPAND</span><em>−2</em></div>
-              <div class="command-token second"><b>2</b><span>RAID</span><em>−3</em><small>−2 MOBILIZE</small></div>
-            </div>
-            <div class="reserve-demo"><span class="grain g1"></span><span class="grain g2"></span><b>2 unused</b><i>→</i><span class="reserve-crate">1 RESERVE</span></div>
-            <div class="visual-caption">You may afford more, but the third Field Command never appears.</div>
+          <div class="lesson-visual quick-start-lesson">
+            <div class="quick-start-title" data-i18n="intro.economy.visualTitle">A TURN IN THREE CLICKS</div>
+            <div class="quick-start-step"><b>1</b><span><strong data-i18n="intro.economy.visual1.title">Choose an action</strong><em data-i18n="intro.economy.visual1.body">Claim 3 · Hold 2 · Attack 1</em></span></div>
+            <div class="quick-start-step"><b>2</b><span><strong data-i18n="intro.economy.visual2.title">Click a glowing tile</strong><em data-i18n="intro.economy.visual2.body">Glow means this action is legal.</em></span></div>
+            <div class="quick-start-step"><b>3</b><span><strong data-i18n="intro.economy.visual3.title">End the turn</strong><em data-i18n="intro.economy.visual3.body">Both sides resolve at the same time.</em></span></div>
           </div>
           <div class="lesson-copy">
-            <p class="lesson-lead">At the start of the turn, add the fertility of every <b>supplied</b> square. Current income is spent before stored Reserve.</p>
-            <ul class="orders lesson-orders">
-              <li class="o-expand"><b>EXPAND</b><em>claim adjacent empty land at strength 1</em><span>2</span></li>
-              <li class="o-fortify"><b>FORTIFY</b><em>+1 strength, once per tile, supplied, cap 6</em><span>2</span></li>
-              <li class="o-raid"><b>RAID</b><em>attack an adjacent enemy tile</em><span>3</span></li>
-            </ul>
-            <div class="rule-step"><b>Two command slots.</b><span>Every Expand, Fortify or Raid uses one. The second slot also costs 2 supply to mobilize.</span></div>
-            <div class="rule-step"><b>Save what remains.</b><span>Every 2 unspent current income becomes 1 Reserve, capped at 6.</span></div>
+            <p class="lesson-lead" data-i18n="intro.economy.lead">You only need to read two numbers: Moves limit how many orders you queue; Supply pays their cost.</p>
+            <div class="rule-step"><b data-i18n="intro.economy.step1.title">Follow the visible prompts.</b><span data-i18n="intro.economy.step1.body">If a tile glows, your selected action can be used there. If a button is grey, its requirement is not met yet.</span></div>
+            <div class="rule-step"><b data-i18n="intro.economy.step2.title">Stay on one route this turn.</b><span data-i18n="intro.economy.step2.body">Your first route action selects North or South. Next turn you can choose either route again.</span></div>
+            <div class="rule-step"><b data-i18n="intro.economy.step3.title">Everything else is optional.</b><span data-i18n="intro.economy.step3.body">Unused Supply becomes Reserve. Combo only appears after linked orders; you can safely ignore it at first.</span></div>
           </div>
         </div>
       </div>
@@ -326,23 +364,23 @@
     <!-- 4. commit an effort -->
     <section class="slide" data-slide="3">
       <div class="sheet lesson-sheet">
-        <div class="sheet-kicker">3 / 5 · COMMIT THE EFFORT</div>
-        <h2>Concentrate both commands to create a breakthrough.</h2>
+        <div class="sheet-kicker" data-i18n="intro.effort.kicker">3 / 5 · CHOOSE A FRONT</div>
+        <h2 data-i18n="intro.effort.title">Focus one front this turn, then choose again.</h2>
         <div class="lesson-layout">
           <div class="lesson-visual effort-lesson">
-            <div class="effort-title"><b>MAIN EFFORT: NORTH</b><span>HORIZON · 3 TURNS</span></div>
+            <div class="effort-title"><b data-i18n="intro.effort.now">THIS TURN: NORTH</b><span data-i18n="intro.effort.next">CHOOSE AGAIN NEXT TURN</span></div>
             <div class="march-track">
-              <span class="march-tile home">CAP</span><span class="march-tile one">1</span><span class="march-tile two">2</span><span class="march-tile goal">RELAY</span>
+              <span class="march-tile home" data-i18n="intro.effort.cap">CAP</span><span class="march-tile one">1</span><span class="march-tile two">2</span><span class="march-tile goal" data-i18n="intro.effort.relay">RELAY</span>
               <i class="march-unit u1"></i><i class="march-unit u2"></i>
             </div>
-            <div class="support-callout"><b>MARCH SUPPLY · −2</b><span>follow-through starts at strength <strong>2</strong></span></div>
-            <div class="redeploy-callout"><span>After the lock:</span><b>REDEPLOY + ACTION = 2 COMMANDS · −2 supply</b></div>
+            <div class="support-callout"><b data-i18n="intro.effort.combo">COMBO LIGHTS UP</b><span data-i18n="intro.effort.comboSub">linked orders can buy a stronger follow-through</span></div>
+            <div class="redeploy-callout"><span data-i18n="intro.effort.nextLabel">Next turn:</span><b data-i18n="intro.effort.nextChoice">CHOOSE NORTH OR SOUTH AGAIN</b></div>
           </div>
           <div class="lesson-copy">
-            <div class="rule-step"><b>Your first order names the front.</b><span>NORTH or SOUTH becomes the main effort for 3 turns. Active orders stay on that route.</span></div>
-            <div class="rule-step"><b>Chain an advance.</b><span>Spend both commands on two connected Expands to move two tiles in one turn.</span></div>
-            <div class="rule-step"><b>Fund March Supply.</b><span>Pay 2 more supply and the second new tile begins at strength 2 instead of 1.</span></div>
-            <div class="rule-step"><b>Changing direction has weight.</b><span>After the horizon expires, redeployment consumes one command; only one action remains that turn.</span></div>
+            <div class="rule-step"><b data-i18n="intro.effort.step1.title">Your first route action chooses this turn's front.</b><span data-i18n="intro.effort.step1.body">Claim, Hold and Attack stay on North or South for this turn only.</span></div>
+            <div class="rule-step"><b data-i18n="intro.effort.step2.title">Chain a clear advance.</b><span data-i18n="intro.effort.step2.body">Two connected Claims or two supplied attacks on one target make Combo available.</span></div>
+            <div class="rule-step"><b data-i18n="intro.effort.step3.title">Combo is optional.</b><span data-i18n="intro.effort.step3.body">Use it for a stronger follow-through, or save that Supply as Reserve.</span></div>
+            <div class="rule-step"><b data-i18n="intro.effort.step4.title">There is no third route.</b><span data-i18n="intro.effort.step4.body">The central-side squares are ordinary North or South land; choose either route again next turn.</span></div>
           </div>
         </div>
       </div>
@@ -351,72 +389,61 @@
     <!-- 5. combat and supply -->
     <section class="slide" data-slide="4">
       <div class="sheet lesson-sheet">
-        <div class="sheet-kicker">4 / 5 · BREAK AND CUT</div>
-        <h2>Attack from two directions, then sever the Relay.</h2>
+        <div class="sheet-kicker" data-i18n="intro.combat.kicker">3 / 3 · RESOLVE AND SURVIVE</div>
+        <h2 data-i18n="intro.combat.title">Win fights, keep your line supplied.</h2>
         <div class="lesson-layout">
-          <div class="lesson-visual battle-lesson">
-            <svg viewBox="0 0 520 230" role="img" aria-label="Two supplied attacks converge on one defended tile">
-              <defs><marker id="arrow-fire" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"></path></marker></defs>
-              <rect class="battle-source" x="55" y="38" width="74" height="60"></rect>
-              <rect class="battle-source" x="55" y="139" width="74" height="60"></rect>
-              <rect class="battle-target" x="322" y="88" width="82" height="70"></rect>
-              <path class="attack-line a1" d="M130 70 C210 70 230 110 320 120"></path>
-              <path class="attack-line a2" d="M130 170 C210 170 230 135 320 125"></path>
-              <text x="75" y="73">STR 2</text><text x="75" y="174">STR 2</text><text x="338" y="118">STR 4</text><text x="341" y="139">HIGH 1</text>
-              <text class="supply-tag" x="45" y="220">SUPPLIED SOURCES</text>
-              <text class="relay-tag" x="419" y="117">R</text>
-            </svg>
-            <div class="combat-math"><span>2 + 3</span><b>+2 COORDINATION</b><strong>+1 SIEGE</strong><i>&gt;</i><span>4 + 1</span></div>
-            <div class="cutoff-chain"><span class="relay-box">RELAY TAKEN</span><i>→</i><span>NO INCOME</span><i>→</i><span>NO FORTIFY</span><i>→</i><span>STR −1 / TURN</span></div>
+          <div class="lesson-visual outcome-lesson">
+            <div class="outcome-title" data-i18n="intro.combat.visualTitle">READ THE RESULT</div>
+            <div class="outcome-row"><b>⚔</b><span><strong data-i18n="intro.combat.visual1.title">Attack wins when its number is higher.</strong><em data-i18n="intro.combat.visual1.body">Strength + 3 must beat Strength + Height.</em></span></div>
+            <div class="outcome-row"><b>◇</b><span><strong data-i18n="intro.combat.visual2.title">A full Relay pair cuts Supply.</strong><em data-i18n="intro.combat.visual2.body">Cut-off land cannot Hold and weakens each turn.</em></span></div>
+            <div class="outcome-row beacon"><b>★</b><span><strong data-i18n="intro.combat.visual3.title">A supplied Beacon scores.</strong><em data-i18n="intro.combat.visual3.body">Reach 10 points first, or lead in land after turn 25.</em></span></div>
           </div>
           <div class="lesson-copy">
-            <div class="rule-step"><b>One deterministic comparison.</b><span>Attack = source strength + 3. Defence = target strength + height. Attack must be strictly higher; a tie holds.</span></div>
-            <div class="rule-step"><b>Coordinate.</b><span>Two different supplied sources attacking one tile add +2. Siege Support costs 2 for another +1.</span></div>
-            <div class="rule-step"><b>Cut the path home.</b><span>Supply traces through your own land and its Relay back to the capital. Capture the rear Relay to isolate the front.</span></div>
-            <div class="rule-step beacon-step"><b>Supply decides scoring.</b><span>Cut-off land earns no fertility, cannot Fortify and loses 1 strength each turn. An unsupplied Beacon scores nothing.</span></div>
+            <div class="rule-step"><b data-i18n="intro.combat.step1.title">Attack only needs one comparison.</b><span data-i18n="intro.combat.step1.body">Source strength + 3 must beat target strength + height. Two supplied sources on one target gain +2.</span></div>
+            <div class="rule-step"><b data-i18n="intro.combat.step2.title">Relay cuts the line home.</b><span data-i18n="intro.combat.step2.body">Take both tiles in a Relay pair to isolate land beyond it. Cut-off land gives no Supply, cannot Hold and loses strength.</span></div>
+            <div class="rule-step beacon-step"><b data-i18n="intro.combat.step3.title">Resolve together, then react.</b><span data-i18n="intro.combat.step3.body">Both sides reveal at once. Cinder warns before changing the field; reach 10 supplied Beacon points, or hold more land after turn 25.</span></div>
           </div>
         </div>
       </div>
     </section>
 
+    <!-- CINDER AND VICTORY: the detailed rules remain available after this quick first-play path. -->
     <!-- 6. world and victory -->
     <section class="slide" data-slide="5">
       <div class="sheet lesson-sheet">
-        <div class="sheet-kicker">5 / 5 · CINDER AND VICTORY</div>
-        <h2>The rival plans in secret. The mountain warns before it moves.</h2>
+        <div class="sheet-kicker" data-i18n="intro.ai.kicker">5 / 5 · CINDER SHIFTS THE FIELD</div>
+        <h2 data-i18n="intro.ai.title">Cinder creates a fair new decision.</h2>
         <div class="lesson-layout">
           <div class="lesson-visual cinder-lesson">
             <div class="turn-sequence">
-              <div><b>1</b><span>QUEUE</span><small>1 / 2 / 3 + map</small></div>
-              <i>→</i><div><b>2</b><span>SALTKIN</span><small>secret orders</small></div>
-              <i>→</i><div><b>3</b><span>RESOLVE</span><small>simultaneous</small></div>
+              <div><b>1</b><span data-i18n="intro.ai.queue">QUEUE</span><small data-i18n="intro.ai.queueSub">1 / 2 / 3 + map</small></div>
+              <i>→</i><div><b>2</b><span>SALTKIN</span><small data-i18n="intro.ai.saltkinSub">secret orders</small></div>
+              <i>→</i><div><b>3</b><span data-i18n="intro.ai.resolve">RESOLVE</span><small data-i18n="intro.ai.resolveSub">simultaneous</small></div>
             </div>
             <div class="event-timeline">
-              <span class="timeline-turn">TURN 2</span><b class="warning-rune">⚠ WARNING · NORTH COAST</b><i></i><span class="timeline-turn">TURN 3</span><b class="event-rune">CINDER ACTS</b>
+              <span class="timeline-turn" data-i18n="intro.ai.turn2">TURN 2</span><b class="warning-rune" data-i18n="intro.ai.warning">⚠ WARNING · NORTH COAST</b><i></i><span class="timeline-turn" data-i18n="intro.ai.turn3">TURN 3</span><b class="event-rune" data-i18n="intro.ai.acts">CINDER ACTS</b>
             </div>
-            <div class="victory-demo"><span class="beacon-flame">★</span><b>10 SUPPLIED BEACON POINTS</b><em>or most land after 25 resolved turns</em></div>
+            <div class="victory-demo"><span class="beacon-flame">★</span><b data-i18n="intro.ai.victory">10 SUPPLIED BEACON POINTS</b><em data-i18n="intro.ai.victorySub">or most land after 25 resolved turns</em></div>
           </div>
           <div class="lesson-copy">
-            <div class="rule-step"><b>Orders are simultaneous.</b><span>The Saltkin AI sees the public map, not your current queue. Once you end the turn, both plans resolve together.</span></div>
-            <div class="rule-step"><b>Every third turn, Director considers the world.</b><span>It tests safe candidates, explains its evidence and posts a one-turn warning before any event fires.</span></div>
-            <div class="rule-step"><b>Stillness raises Cinder Pressure.</b><span>Two quiet turns warn you; continued stagnation erodes oversized forts and can open a temporary bridge. Territorial change resets it.</span></div>
-            <div class="controls-strip"><kbd>1</kbd> Expand <kbd>2</kbd> Fortify <kbd>3</kbd> Raid <kbd>Enter</kbd> End turn <kbd>Esc</kbd> Clear queue</div>
+            <div class="rule-step"><b data-i18n="intro.ai.step1.title">Play first; the rival cannot see your queued moves.</b><span data-i18n="intro.ai.step1.body">When you end the turn, both sides resolve together.</span></div>
+            <div class="rule-step"><b data-i18n="intro.ai.step2.title">Every third turn, Cinder signals a change.</b><span data-i18n="intro.ai.step2.body">It reads the resolved battle, gives a visible warning, then changes the field on the following turn.</span></div>
+            <div class="rule-step"><b data-i18n="intro.ai.step3.title">The change is constrained and fair.</b><span data-i18n="intro.ai.step3.body">Capitals and Relays are protected; Cinder cannot erase the routes between both sides.</span></div>
+            <div class="controls-strip"><kbd>1</kbd> <span data-i18n="intro.ai.claim">Claim</span> <kbd>2</kbd> <span data-i18n="intro.ai.hold">Hold</span> <kbd>3</kbd> <span data-i18n="intro.ai.attack">Attack</span> <kbd>4</kbd> <span data-i18n="intro.ai.combo">Combo</span> <kbd>Enter</kbd> <span data-i18n="intro.ai.end">End turn</span> <kbd>Esc</kbd> <span data-i18n="intro.ai.clear">Clear queue</span></div>
           </div>
         </div>
       </div>
     </section>
 
     <nav class="intro-nav">
-      <button id="intro-back" class="btn intro-back" disabled>BACK <kbd>←</kbd></button>
+      <button id="intro-back" class="btn intro-back" disabled><span data-i18n="intro.back">BACK</span> <kbd>←</kbd></button>
       <div class="intro-position">
-        <span id="intro-progress">1 OF 6</span>
+        <span id="intro-progress">1 OF 4</span>
         <div class="dots" aria-label="Tutorial pages">
           <button class="dot-nav active" type="button" data-go="0" aria-label="Introduction" aria-current="step"></button>
           <button class="dot-nav" type="button" data-go="1" aria-label="Read the map"></button>
-          <button class="dot-nav" type="button" data-go="2" aria-label="Fund a turn"></button>
-          <button class="dot-nav" type="button" data-go="3" aria-label="Commit the effort"></button>
-          <button class="dot-nav" type="button" data-go="4" aria-label="Combat and supply"></button>
-          <button class="dot-nav" type="button" data-go="5" aria-label="Cinder and victory"></button>
+          <button class="dot-nav" type="button" data-go="2" aria-label="Plan a turn"></button>
+          <button class="dot-nav" type="button" data-go="3" aria-label="Resolve and survive"></button>
         </div>
       </div>
       <button id="intro-next" class="btn primary intro-next">READ THE RING <kbd>→</kbd></button>

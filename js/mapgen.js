@@ -1,14 +1,10 @@
 /* ============================================================
    mapgen.js — the double-route ladder ring
 
-   Two broad east/west fronts run north and south of the caldera. Two
-   rotationally mirrored cross-caldera bridges join those fronts. They are
-   cross-connections, not a third capital route: a breakthrough on one front
-   can turn through a bridge and enter the rear of the other front.
-
-   The topology is fixed so every generated map supports that manoeuvre.
-   Elevation, fertility, the Beacon, and harmless outer fringe tiles remain
-   procedural and exactly 180-degree rotationally symmetric.
+   Two broad east/west fronts run north and south of the caldera. The original
+   central-side map blocks remain ordinary land, assigned to the nearer North
+   or South route. They preserve the island silhouette and connectivity without
+   being named, highlighted, or taught as a separate bridge/flanking mechanic.
    ============================================================ */
 CF.mapgen = (function () {
   var U = CF.util;
@@ -23,7 +19,7 @@ CF.mapgen = (function () {
     return {
       land: false, elev: 0, fert: 0, owner: 0, str: 0,
       capital: 0, crater: 0, born: 0,
-      route: null, bridge: null, relay: null, temporaryBridge: 0,
+      route: null, bridge: null, relay: null,
       pressureReserved: 0
     };
   }
@@ -60,15 +56,6 @@ CF.mapgen = (function () {
       mark(tiles, 12, y, y < 5 ? 'north' : 'south');
     }
 
-    // The two permanent cross-caldera bridges. Each is two tiles wide and the
-    // eastern bridge is the exact rotational twin of the western bridge.
-    [[3, 4, 'west'], [9, 10, 'east']].forEach(function (spec) {
-      for (var bx = spec[0]; bx <= spec[1]; bx++) {
-        mark(tiles, bx, 4, 'cross', spec[2]);
-        mark(tiles, bx, 5, 'cross', spec[2]);
-      }
-    });
-
     // Procedural fringe creates an island silhouette without changing the
     // ladder's connectivity. Only the western half decides; twins are copied.
     for (var fx = 2; fx <= 6; fx++) {
@@ -84,17 +71,25 @@ CF.mapgen = (function () {
       }
     }
 
-    // A central two-by-two cooled-lava bridge is reserved for Cinder Pressure.
-    // It starts as water and may open temporarily after prolonged stillness.
-    var pressureBridge = [];
+    // The central caldera remains reserved water. It is visual scenery, not a
+    // temporary route or a source of surprise traversal rules.
     for (var px = 6; px <= 7; px++) {
       for (var py = 4; py <= 5; py++) {
         var pi = idx(px, py);
-        pressureBridge.push(pi);
         tiles[pi] = blankTile();
         tiles[pi].pressureReserved = 1;
       }
     }
+
+    // Keep the original central-side blocks as ordinary route land. Upper
+    // blocks belong to North and lower blocks to South; there is no special
+    // bridge tag, temporary opening, or distinct interaction rule.
+    [[3, 4], [9, 10]].forEach(function (spec) {
+      for (var bx = spec[0]; bx <= spec[1]; bx++) {
+        mark(tiles, bx, 4, 'north');
+        mark(tiles, bx, 5, 'south');
+      }
+    });
 
     // Terrain value is mirrored exactly. Caldera-facing ground is fertile;
     // seaward ground is higher, preserving the original risk/reward tension.
@@ -117,9 +112,8 @@ CF.mapgen = (function () {
       }
     }
 
-    // Relay zones span both rows of a route. Taking one square can weaken a
-    // junction; taking both severs that lane unless another controlled bridge
-    // provides a way around it.
+    // Relay zones span both rows of a route. Taking both squares severs that
+    // lane's Supply, giving each front one clear and visible choke point.
     var relays = {
       NW: [idx(4, 2), idx(4, 3)],
       SW: [idx(4, 6), idx(4, 7)],
@@ -148,7 +142,7 @@ CF.mapgen = (function () {
     return {
       W: W, H: H, tiles: tiles,
       capitals: { 1: capA, 2: capB },
-      beacon: beacon, relays: relays, pressureBridge: pressureBridge,
+      beacon: beacon, relays: relays,
       openingFocus: openingFocus,
       seed: seed | 0, rngSeed: holder.seed
     };

@@ -190,13 +190,20 @@ CF.events = (function () {
 
     bloom: {
       name: 'BLOOM',
-      blurb: 'Rain on the ash fields. A quiet corner suddenly becomes worth fighting for.',
+      blurb: 'Rain enriches neutral ground on a quiet front, creating a fair reason for both sides to contest it.',
       warn: function (ev) { return 'Rain is gathering over ' + regionName(ev.region) + '.'; },
       run: function (s, ev, rand, fx) {
-        var land = tilesIn(s, ev.region, isLand);
+        // A Bloom is an opportunity, not a hidden subsidy. Prefer open land
+        // that both sides can contest; only fall back to land generally when
+        // the chosen front has been fully claimed.
+        var land = tilesIn(s, ev.region, function (t) {
+          return t.land && t.owner === 0 && !t.relay && !t.capital;
+        });
+        if (!land.length) land = tilesIn(s, ev.region, isLand);
         if (!land.length) return null;
+        land.sort(function (a, b) { return contestScore(s, b) - contestScore(s, a) || a - b; });
         var lifted = 0;
-        land.forEach(function (i) {
+        land.slice(0, 2 + ev.intensity).forEach(function (i) {
           var t = s.tiles[i];
           var before = t.fert;
           t.fert = U.clamp(t.fert + ev.intensity, 0, 3);

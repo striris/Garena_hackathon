@@ -44,7 +44,8 @@ OpenAI(
 ```
 
 Both decisions use `client.chat.completions.create()`. The default model is
-`openai/gpt-oss-120b`. The complete schema is included in the system message,
+`moonshotai/Kimi-K2.7-Code` through SiliconFlow's OpenAI-compatible endpoint;
+both values remain configurable through environment variables. The complete schema is included in the system message,
 then the returned JSON is parsed and checked again by trusted server code. An
 unknown candidate, unknown evidence field, extra output property, invalid enum,
 timeout, missing key, provider rejection, or malformed JSON becomes an explicit
@@ -59,32 +60,33 @@ other repository content through the static server allowlist.
 ## Deterministic battlefield and combat authority
 
 The generated battlefield has a fixed double-route ladder skeleton: broad north
-and south capital routes plus two two-tile-wide, rotationally mirrored
-cross-caldera bridges. Procedural generation varies only mirrored terrain and
-outer fringe land, so it cannot remove the flanking topology. Eight visible
-Relay squares mark the four bridge landings.
+and south capital routes plus the original central-side ordinary land blocks.
+Those blocks are assigned to their adjacent North or South route and have no
+special bridge rule or temporary-opening state. Eight visible Relay squares
+mark four supply choke points.
 They have zero fertility and low elevation, so their value comes only from
 connectivity rather than extra income or defensive terrain.
 
-Expand, Raid, and Fortify share two field commands per side. Fortify costs two,
-adds one, is limited to one use per supplied square per turn, and cannot exceed
-strength six. The engine—not the prompt—locks both sides to a north/south main
-effort for three turns. After expiry, changing route consumes one command on
-redeployment. Filling the second command slot costs 2 supply. Half of unspent
-income becomes a capped six-point reserve. A once-per-turn, two-supply Operation
-Support can establish a chained Expand at strength 2 or add +1 to a coordinated
-Raid; it cannot affect Fortify. Two consecutive Expands may advance through the
-first new square; two distinct supplied Raid sources aimed at one target gain
-+2. A seeded, equi-distant Ash Surge and Beacon give both sides the same opening
-route focus. The LLM Doctrine adjusts priorities but cannot add commands or
-waive rules.
+Expand, Raid, and Fortify share action slots on a `3, 4, 4, 5, 5, 6` curve,
+then remain at six. Expand / Fortify / Raid cost 3 / 2 / 1 Supply. Fortify adds
+one, is limited to one use per supplied square per turn, and cannot exceed
+strength six. The engine—not the prompt—keeps each side's territorial actions
+on one north/south front during a turn; the next turn can freely choose either
+front. There is no additional Supply tax. Unspent
+income becomes a capped eight-point reserve one-for-one. A once-per-turn,
+two-supply Operation Support can establish a chained Expand at strength 2 or
+add +1 to a coordinated Raid; it cannot affect Fortify. Two consecutive Expands
+may advance through the first new square; two distinct supplied Raid sources
+aimed at one target gain +2. A seeded, equi-distant Ash Surge and Beacon give
+both sides the same opening route focus. The LLM Doctrine adjusts priorities
+but cannot add commands or waive rules.
 
 Supply remains a capital flood fill. Taking both squares of a Relay cross-section
 can therefore isolate the front beyond it. Cut-off land earns no fertility,
 cannot Fortify, and starves; an unsupplied Beacon scores no point. Cinder Pressure
-is trusted engine code: two unchanged turns warn, three erode excess front-line
-strength, and continued stillness opens a neutral central bridge for two turns.
-It never grants ownership or directly cuts either side's supply.
+is trusted engine code: two unchanged turns warn and three erode excess
+front-line strength. It never grants ownership or directly cuts either side's
+supply; new neutral opportunities come through validated world events.
 
 ## Saltkin privacy and lifecycle
 
@@ -96,11 +98,12 @@ and is not an argument to `CF.profile.requestPayload()`.
 The versioned `localStorage` record retains at most five match summaries. The
 designer console includes a clear-memory control.
 
-A Doctrine normally lasts three uses. It cannot be replaced before two uses,
-even after a world event, three-tile loss, or Beacon change. Each turn can start
-at most one request. Responses are accepted only if `matchId`, `snapshotTurn`,
-request sequence, current turn, and pre-order phase still match. Otherwise the
-response is discarded and the previous Doctrine or heuristic remains active.
+A Doctrine normally lasts two resolved turns. A new request can be made only at
+a defined lifecycle boundary (or following a significant settled change), and
+each turn can start at most one request. Responses are accepted only if
+`matchId`, `snapshotTurn`, request sequence, current turn, and pre-order phase
+still match. Otherwise the response is discarded and the previous Doctrine or
+heuristic remains active.
 
 The browser exposes an explicit, non-numeric thinking phase while a Doctrine is
 requested, while Saltkin seals its simultaneous orders, and while the Director

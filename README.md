@@ -1,263 +1,160 @@
 # CINDERFALL
 
-**A strategy game where the rival learns you—and the map is a player too.**
+**A compact strategy game set on a volcanic ring that never stays the same.**
 
-Two peoples fight over a procedurally varied double-route ladder ring. The adaptive
-Saltkin studies only resolved public play and chooses a three-turn Doctrine. The
-neutral Cinder Director compares safe world interventions through deterministic
-counterfactual simulations, warns the player, acts, then scores its prediction.
+You command the Ashfarers against the Saltkin. Expand through the North or
+South route, cut an enemy supply line at a Relay, and keep the Beacon connected
+to your capital long enough to win.
 
-Built for the Garena AI Build Challenge 2026 and the build specification in this
-repository.
+CINDERFALL is designed as a short, readable match rather than a large strategy
+game. The battlefield has two clear fronts, a small action set, visible legal
+targets, and simultaneous turns. As the match develops, Cinder observes only
+what has already happened and creates a new, fair opportunity on the map.
 
-## Run the full AI prototype
+> 中文概览：这是一个围绕北路与南路展开的轻策略对抗游戏。扩张领地、守住补给线、
+> 争夺 Relay，并让 Beacon 保持补给即可得分。火山 Cinder 会根据已结算的局势改变
+> 后续地图机会，但不会替任何一方直接决定胜负。
 
-Requirements: Python 3.9+ and an API key for the configured OpenAI-compatible
-gateway. Node.js is needed only for offline simulations.
+## Play the game
 
-```powershell
+Requirements: **Python 3.9+**. Node.js is optional and is only used for local
+simulation. The complete rules game works without an LLM key.
+
+```bash
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+# macOS / Linux
+source .venv/bin/activate
+# Windows PowerShell: .\.venv\Scripts\Activate.ps1
+
 python -m pip install -r requirements.txt
-Copy-Item .env.example .env
-```
+cp .env.example .env
+# Windows PowerShell: Copy-Item .env.example .env
 
-Edit `.env` with a newly issued key:
-
-```dotenv
-CINDERFALL_API_KEY=your-new-key
-CINDERFALL_AI_BASE_URL=https://api.aiand.com/v1
-CINDERFALL_AI_MODEL=openai/gpt-oss-120b
-CINDERFALL_AI_TIMEOUT_SECONDS=15
-```
-
-Then run:
-
-```powershell
 python server.py
 ```
 
-Open <http://127.0.0.1:8000>. The API key remains in the Python process and is
-never sent to the browser. If the key, SDK, network, provider, or model output
-fails, the game remains playable and labels the decision `FALLBACK`.
+Open <http://127.0.0.1:8000>.
 
-Opening `index.html` directly still provides the deterministic offline game, but
-browser security prevents the live AI endpoints from working under `file://`.
+### Optional LLM configuration
 
-## What is here
+LLM calls enrich the Saltkin's strategic intent, Cinder's event selection, and
+the optional Mock Player tool. They are never required to execute a legal turn:
+the deterministic rules and bot always remain available as fallback.
 
-| Component | Behaviour |
-|---|---|
-| Playable game | 25 actionable turns, one player versus Saltkin |
-| Battlefield | Two broad north/south routes, two mirrored cross-caldera bridges, and eight visible Relay squares |
-| Saltkin Strategic AI | Privacy-preserving player profile → three-turn Doctrine → legal deterministic orders |
-| Cinder Director | Up to ten safe candidates, three counterfactual rollouts each, candidate-ID-only LLM selection |
-| Shadow baseline | Original scored heuristic remains visible without controlling an LLM decision |
-| Guardrails | Six hard rules plus a 40% player-choice preservation limit and live revalidation |
-| Chronicle | Decision evidence, source, prediction, measured result, refusal and recovery history |
-| Designer audit console | Doctrine, player profile, candidates, latency, request ID, model, override and failure controls |
-| Offline simulator | Balance, privacy, legality, purity, fairness and regression checks without API cost |
-
-## AI authority and workflow
-
-Saltkin's model may choose only:
-
-- stance: `ASSAULT`, `GROWTH`, or `FORTRESS`;
-- objective, target region, and risk level;
-- observable player-profile and evidence fields;
-- a short player-facing intent.
-
-It cannot see the player's current unsubmitted order queue, choose a tile, exceed
-the budget, make an illegal order, or force the deterministic Bot to launch a
-raid that cannot succeed.
-
-Every three turns, Cinder:
-
-1. Enumerates template × intensity × region combinations.
-2. Rejects candidates that fail Guardrails or remove over 40% of either side's
-   available Expand/Raid choices.
-3. Deduplicates resulting maps and retains at most ten diverse candidates.
-4. Runs three deterministic three-turn rollouts per candidate.
-5. Sends aggregate outcomes to the LLM.
-6. Accepts only an offered candidate ID with schema-valid evidence and prediction.
-7. Revalidates against the live board before execution, tries the next safe
-   candidate if necessary, and finally uses a deterministic safe default.
-
-See [AI_ARCHITECTURE.md](AI_ARCHITECTURE.md) for the data and authority boundaries.
-
-## API
-
-The local Python service exposes:
-
-- `GET /api/ai/health`
-- `POST /api/ai/saltkin`
-- `POST /api/ai/director`
-
-It uses the official Python SDK interface:
-
-```python
-import os
-from openai import OpenAI
-
-client = OpenAI(
-    base_url="https://api.aiand.com/v1",
-    api_key=os.environ["CINDERFALL_API_KEY"],
-)
-response = client.chat.completions.create(
-    model="openai/gpt-oss-120b",
-    messages=messages,
-)
+```dotenv
+CINDERFALL_API_KEY=your-key
+CINDERFALL_AI_BASE_URL=https://api.siliconflow.cn/v1
+CINDERFALL_AI_MODEL=moonshotai/Kimi-K2.7-Code
+CINDERFALL_AI_TIMEOUT_SECONDS=12
+CINDERFALL_HOST=127.0.0.1
+CINDERFALL_PORT=8000
 ```
 
-Prompts and JSON Schemas are version-controlled under `ai/`. Strict trusted-code
-validation rejects additional fields, invalid enums, unknown evidence,
-out-of-range confidence, malformed JSON, and Director candidate IDs that were not
-offered. Raw model output and private chain-of-thought are not displayed.
+The key stays in the local Python service and is never exposed to the browser.
+Do not commit `.env`.
 
-## Deterministic game rules
+## First match in one minute
 
-The capitals share broad north and south routes. Two rotationally mirrored
-cross-caldera bridges let a breakthrough on one route turn into the rear of the
-other. Each bridge landing is two squares wide and marked as a Supply Relay;
-controlling both squares can isolate the enemy front beyond it. Relay squares
-have zero fertility and low elevation: they are tactical junctions, not bonus
-income points or replacement fortresses.
+Open **Settings → How to Play** for the short visual guide. The practical loop
+is deliberately simple:
 
-You earn the fertility of every supplied square you hold and spend it on:
+1. **Choose a route.** Select `Claim`, then click a glowing empty tile on North
+   or South. The first route action is your focus for this turn; next turn you
+   can choose either front again.
+2. **Use the three core actions.** Claim grows into empty land, Hold strengthens
+   a supplied friendly tile, and Attack contests an adjacent enemy tile. The
+   fourth button, Combo, is an optional bonus that lights only after linked
+   actions.
+3. **End the turn.** Both sides' queued orders resolve together. The fixed task
+   line above the battle log always states the most useful next move.
 
-| Order | Cost | Effect |
-|---|---:|---|
-| Expand | 2 | Claim adjacent empty land at strength 1 |
-| Fortify | 2 | Add 1 strength to a supplied square, once per turn, up to strength 6 |
-| Raid | 3 | Attack an adjacent enemy square |
+Keyboard controls: `1–4` select an action, `Enter` ends the turn, and `Esc`
+clears the current queue.
 
-Expand, Raid, and Fortify share two field commands per side per turn. The first
-accepted action commits that side to a `MAIN EFFORT` north or south for three
-turns. Once the lock expires, changing route spends one command on redeployment,
-so only one action remains that turn. Mobilizing the second command—including a
-redeployment—costs 2 additional supply. Every 2 unspent income becomes 1 Supply
-Reserve, capped at 6; current income is spent before reserve.
+## Read the battlefield
 
-Two consecutive Expands can continue through the first newly claimed square;
-two Raids against one target from distinct supplied sources gain +2 attack. One
-optional Operation Support per turn costs 2 more: March Supply establishes the
-second chained Expand at strength 2, while Siege Support adds +1 to a coordinated
-Raid. Support never strengthens Fortify and never creates another command.
+| Map element | What it means |
+|---|---|
+| **North / South** | The two normal fronts. Neither is a special third route, and you may switch on the next turn. |
+| **Glowing border** | Your selected action is legal on this tile. |
+| **◇ Relay pair** | Taking both squares can sever the enemy territory beyond it from its capital. |
+| **★ Beacon** | Scores only while it is connected to your capital by supplied land. |
+| **Cinder warning** | A visible, upcoming world change. It gives both sides time to react. |
 
-At the start of a match, one globally named route receives an `ASH SURGE` for
-four turns and contains the equidistant Beacon. Supplied non-capital squares on
-that route gain +1 fertility for both sides. This creates one fair shared
-opening objective while the other route remains available for a later flank.
+Supply is the core strategic rule: connected land produces resources and can be
+held; cut-off land weakens. A supplied Beacon earns points. Capture and defend
+with one clear combat comparison, while a coordinated attack from two supplied
+tiles is stronger.
 
-Supply traces through owned land and Relay junctions to the capital. Cut-off
-squares earn nothing, cannot Fortify, and lose one strength per turn. The Beacon
-scores only while supplied. After two unchanged turns Cinder Pressure warns the
-players; from turn three it erodes front-line strength above three, and continued
-stillness temporarily opens a two-turn central crossing. A capture or new supply
-cut resets the pressure.
+Win by earning enough supplied Beacon points, or by holding more land when the
+match limit is reached.
 
-Win with 10 supplied Beacon Points or the most land after 25 completed turns.
+## Cinder: a living but fair battlefield
 
-## Guardrails
+Cinder is the world, not a hidden referee. It looks at resolved public state—
+territory, supply pressure, route use, and recent combat—and selects from safe
+map opportunities prepared by trusted game code. The result may create a new
+resource focus, shift terrain pressure, or encourage movement on a quieter
+front.
 
-Cinder proposes. Plain code decides. No event may:
+The game enforces these guarantees:
 
-1. Take more than 25% of either side's land at once.
-2. Push a side below three squares.
-3. Target the same side for three consecutive seasons.
-4. Repeat the previous template.
-5. Destroy a capital.
-6. Sever every ladder route so the peoples can never reach one another.
+- Current player orders are never sent to the opponent or world model.
+- Capitals and Relay infrastructure are protected.
+- A world change cannot remove every route between both sides or erase a side
+  from the map.
+- Every event is announced before it happens and checked again at execution.
+- A failed or slow model call produces an explicit deterministic fallback,
+  rather than blocking the match indefinitely.
 
-Designer overrides pass the same checks. Paused events remain due. Earthquake
-selection, damage, warning, message, and animation all use the same region.
+The **Cinder** panel is optional for play. It shows the current world reading,
+pending event, safe candidate context, testing controls, optional Mock Player,
+and the resolved-history player profile.
 
-## Privacy
+## Mock Player
 
-The player profile contains aggregate game behaviours only: Beacon proximity,
-high-ground Fortify share, preferred arc, supply neglect, warning response, and
-the previous match's dominant tactic. A versioned `localStorage` record keeps at
-most five summaries and can be cleared in the audit console. There are no
-accounts, identity fields, analytics, or external datasets.
-
-See [THIRD_PARTY.md](THIRD_PARTY.md) for dependencies, gateway/model disclosure,
-licenses, and transmitted data.
+`Mock LLM Move` is a development/demo tool. It asks the configured model for a
+high-level Ashfarer plan, then lets the same deterministic legal-order bot turn
+that plan into a visible queue. It never bypasses the rules and has no effect
+on ordinary turns unless you press the button.
 
 ## Project layout
 
 ```text
-ai/prompts/          Saltkin and Director system prompts
-ai/schemas/          strict decision schemas
-ai_service.py        SDK client, parsing and trusted validation
-server.py            static allowlist and same-origin API
-js/engine.js         pure turn rules
-js/mapgen.js         symmetric double-route ladder, Relays and pressure crossing
-js/events.js         ten fixed world-event templates
-js/validator.js      hard event guardrails
-js/profile.js        resolved-history player profile and five-match memory
-js/bot.js            legal order generator with optional Doctrine weights
-js/director.js       heuristic baseline, candidates, rollouts and LLM mapping
-js/ai.js             server-synchronized API timeout and three-second failure simulation
-js/main.js           lifecycle, late-response checks, audit UI and fallback
-tools/simulate.js    offline balance and invariant suite
-tools/online_eval.py explicit-cost, opt-in remote evaluation
-tests/               Python service and security-boundary tests
+ai/prompts/          Versioned Saltkin, Cinder, and Mock Player prompts
+ai/schemas/          Strict model response schemas
+ai_service.py        OpenAI-compatible client and trusted validation
+server.py            Same-origin static files and local API endpoints
+js/engine.js         Deterministic turns, supply, combat, and victory rules
+js/mapgen.js         Symmetric North/South map, Relay pairs, Beacon, opening focus
+js/events.js         Cinder world-event templates
+js/validator.js      Fairness guardrails for world changes
+js/profile.js        Resolved-history player profile
+js/bot.js            Deterministic legal order generator
+js/director.js       Safe candidates, rollouts, and event selection
+js/main.js           UI, guide, turn flow, and fallbacks
+tools/simulate.js    Offline balance and invariant checks
+tests/               Service, security, UI, and rule tests
 ```
 
-## Verification
+## Verify locally
 
-Offline tests make no model calls and incur no API cost:
+These checks do not call an LLM or consume API credits:
 
-```powershell
-node tools/simulate.js 400
+```bash
+node tools/simulate.js 10
 python -m unittest discover -s tests -v
 ```
 
-The fixed 400-match run currently produces 38.3% Ashfarer wins, 50.5% Saltkin
-wins, and 11.3% draws. It averages 3.4 coordinated breaches per match; 80.8% of
-matches create at least one cut-off, while the last-resort pressure bridge opens
-in 22.5% of matches. All invariants below pass.
+The simulator validates symmetric map generation, North/South route behaviour,
+Relay cut-offs, supply, combat coordination, Beacon scoring, Cinder safeguards,
+and deterministic replay. The test suite covers API boundaries, failure
+handling, UI controls, and static assets.
 
-The invariant suite covers ladder topology and 180-degree symmetry, broad
-cross-bridges, Relay cut-offs, field-command limits, coordinated attacks,
-Fortify caps, supplied Beacon scoring, Cinder Pressure, deterministic replay,
-all event templates, 25 actionable turns, override safety, overdue events,
-Earthquake regions, AI privacy, candidate safety, rollout purity, the 40% agency
-cap, and side-bias sampling.
+## Privacy and third-party components
 
-Remote evaluation is deliberately opt-in:
-
-```powershell
-python tools/online_eval.py --runs-per-scenario 4 --confirm-cost
-```
-
-That runs five fixed scenarios for each AI, producing 20 validated decisions per
-role. It refuses to start without both `CINDERFALL_API_KEY` and `--confirm-cost`.
-
-## Controls and demo path
-
-`1`, `2`, `3` select a tool; click the map to queue; `Enter` ends the turn;
-right-click or click a queued order to remove it; `Esc` clears the queue.
-
-The opening tutorial is six short, replayable scenes rather than one long rules
-page. Animated ladder, command, march, coordinated-Raid, supply-cut and event
-diagrams show the exact numbers used by the engine. Its navigation remains
-outside the scrolling lesson area so Back/Next stays reachable on compact
-screens; the ORDERS panel's `HOW TO PLAY` button opens it again.
-
-When Saltkin or the Director is choosing, a themed status veil names the real
-phase, rotates descriptive progress text and locks every state-changing control.
-It never scales or moves the canvas. Network failure changes the same display to
-an explicit deterministic fallback, and match-scoped run tokens prevent an old
-timer or response from changing a newly created ring.
-
-For a five-minute demo, open the CINDER tab and show:
-
-1. Saltkin Doctrine and resolved-history player evidence.
-2. A Director candidate set and its shadow baseline.
-3. A prediction later marked held or wrong.
-4. A rejected unsafe override or live recovery.
-5. `simulate AI failure`, which waits three seconds and visibly uses `FALLBACK`.
-
-The prototype intentionally omits accounts, human multiplayer and production
-deployment infrastructure.
+Only aggregate, resolved gameplay behaviour is kept in browser `localStorage`;
+there are no accounts, personal identifiers, analytics, or hidden player-order
+collection. See [AI_ARCHITECTURE.md](AI_ARCHITECTURE.md) for the authority
+boundary and [THIRD_PARTY.md](THIRD_PARTY.md) for model, gateway, and license
+disclosure.

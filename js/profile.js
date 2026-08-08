@@ -139,16 +139,16 @@ CF.profile = (function () {
         beaconOwner: state.tiles[state.beacon].owner,
         beaconSupplied: !state.tiles[state.beacon].owner ||
           state.supply[state.beacon] === state.tiles[state.beacon].owner,
-        fieldCommandsPerTurn: E.FIELD_COMMANDS,
+        fieldCommandsThisTurn: E.fieldCommands(state),
+        fieldCommandsBase: E.FIELD_COMMANDS,
         secondCommandMobilizationCost: E.MOBILIZATION_COST,
         operationSupportCost: E.SUPPORT_COST,
         openingFocus: state.opening ? state.opening.route : null,
         mainEffort: state.strategy && state.strategy[2] ? state.strategy[2] : null,
         relayControl: relayControl,
         cinderPressure: state.pressure ? {
-          staleTurns: state.pressure.staleTurns,
-          bridgeTurns: state.pressure.bridgeTurns
-        } : { staleTurns: 0, bridgeTurns: 0 },
+          staleTurns: state.pressure.staleTurns
+        } : { staleTurns: 0 },
         warnedEvent: state.pending ? {
           template: state.pending.template,
           region: state.pending.region,

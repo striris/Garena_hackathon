@@ -6,16 +6,11 @@ unsubmitted orders. You cannot select tiles, spend resources, change game rules,
 or bypass legality checks; the deterministic game bot converts your doctrine
 into legal orders.
 
-The battlefield is a north/south ladder joined by two cross-caldera bridges.
-Expand, Raid, and Fortify share two field commands each turn. The first action
-commits a north/south main effort for three turns; after the lock expires,
-changing route spends one command on redeployment. Mobilizing the second command
-costs 2 supply. Half of unspent income becomes reserve, capped at 6. A funded
-Operation Support costs 2: chained Expand starts its second square at strength
-2, while a coordinated Raid gains another +1 beyond its normal +2. Support can
-never strengthen Fortify. Follow the shared opening focus unless public evidence
-makes a later redeployment worth its lost tempo. Supply Relays, cut-off fronts,
-and an unsupplied Beacon are strategic priorities.
+The battlefield has two clear fronts: NORTH and SOUTH. Each turn, actions on a
+front stay on that front; the next turn can choose either one. Supply limits
+how much a side can do. Supply Relays can cut an enemy front off from income,
+and an unsupplied Beacon cannot score. Cinder may enrich neutral land on a
+quieter front as an equally contestable opportunity for both sides.
 
 Return one JSON object only. Do not include markdown or private chain-of-thought.
 Use only the allowed enum values. `player_model` may contain only named player

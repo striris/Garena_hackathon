@@ -9,12 +9,17 @@
 CF.engine = (function () {
   var U = CF.util, M = CF.mapgen;
 
-  var COST = { expand: 2, fortify: 2, raid: 3 };
-  var FIELD_COMMANDS = 2;
-  var EFFORT_HORIZON = 3;
-  var MOBILIZATION_COST = 2;
+  // Supply is the main per-turn constraint. The action curve deliberately
+  // grows 3, 4, 4, 5, 5, 6, then stays at 6: early turns remain readable,
+  // while later turns have room to react without becoming an endless queue.
+  var COST = { expand: 3, fortify: 2, raid: 1 };
+  var FIELD_COMMANDS = 3;
+  // A two-turn commitment is long enough to give a front an identity, while
+  // still letting a new world opportunity at T3 become an immediate choice.
+  var EFFORT_HORIZON = 2;
+  var MOBILIZATION_COST = 0;
   var SUPPORT_COST = 2;
-  var RESERVE_CAP = 6;
+  var RESERVE_CAP = 8;
   var FORTIFY_GAIN = 1;
   var MAX_STRENGTH = 6;
   var SYNERGY_BONUS = 2;
@@ -32,7 +37,9 @@ CF.engine = (function () {
       capitals: m.capitals,
       beacon: m.beacon,
       relays: m.relays,
-      pressureBridge: m.pressureBridge,
+      // Ash Surge highlights the shared opening route without overwhelming
+      // its normal terrain income: the UI and the actual Supply calculation
+      // both use the same +1 bonus.
       opening: { route: m.openingFocus, untilTurn: 4, fertilityBonus: 1 },
       turn: 1,
       bp: { 1: 0, 2: 0 },
@@ -49,7 +56,7 @@ CF.engine = (function () {
       pending: null,       // the warned-but-not-yet-fired event
       season: 0,
       strategy: { 1: null, 2: null },
-      pressure: { staleTurns: 0, warned: false, bridgeTurns: 0, lastOpenedTurn: -99 },
+      pressure: { staleTurns: 0, warned: false },
       over: null
     };
     s.supply = computeSupply(s);
@@ -58,6 +65,10 @@ CF.engine = (function () {
 
   function raidCost(state) { return state.mods.ashfall > 0 ? COST.raid * 2 : COST.raid; }
   function costOf(state, type) { return type === 'raid' ? raidCost(state) : COST[type]; }
+  function fieldCommands(state) {
+    var turn = state && state.turn || 1;
+    return Math.min(6, FIELD_COMMANDS + Math.floor(turn / 2));
+  }
   function isMilitary(type) { return type === 'raid' || type === 'fortify'; }
   function isFieldAction(type) { return type === 'expand' || type === 'raid' || type === 'fortify'; }
 
@@ -90,6 +101,10 @@ CF.engine = (function () {
   function orderLane(state, order) {
     if (!order) return null;
     var target = state.tiles[order.to];
+    // The capital is a neutral defensive anchor, not a hidden north-route
+    // order. Holding it must remain legal after choosing either front, and a
+    // first-turn Hold must not silently choose the player's main effort.
+    if (order.type === 'fortify' && target && target.capital) return 'CAPITAL';
     if (target && (target.route === 'north' || target.route === 'south')) return laneOf(state, order.to);
     if (order.from != null && state.tiles[order.from]) return laneOf(state, order.from);
     return target ? laneOf(state, order.to) : null;
@@ -241,13 +256,15 @@ CF.engine = (function () {
   }
 
   function commandContext(state, side) {
-    var current = state.strategy && state.strategy[side];
+    // A route is a turn-level focus, not a multi-turn lock. This keeps the
+    // board readable: linked actions share one front this turn, then the next
+    // turn may begin from either front without a redeployment rule.
     return {
       side: side,
-      main: current && current.main || null,
-      issuedTurn: current && current.issuedTurn || 0,
-      untilTurn: current && current.untilTurn || 0,
-      locked: !!(current && current.untilTurn >= state.turn),
+      main: null,
+      issuedTurn: state.turn,
+      untilTurn: state.turn,
+      locked: false,
       committed: false,
       commands: 0,
       redeploys: 0,
@@ -258,38 +275,39 @@ CF.engine = (function () {
   }
 
   function commitFieldCommand(state, ctx, lane) {
+    var limit = fieldCommands(state);
+    if (lane === 'CAPITAL') {
+      if (ctx.commands + 1 > limit)
+        return { ok: false, reason: 'All action slots are already committed.' };
+      var capitalMobilization = ctx.commands < limit && ctx.commands + 1 >= limit
+        ? MOBILIZATION_COST : 0;
+      ctx.commands++;
+      ctx.mobilizationCost += capitalMobilization;
+      return { ok: true, cost: 1, redeployed: false, mobilizationCost: capitalMobilization };
+    }
     if (!lane) return { ok: false, reason: 'This order is not on a recognised route.' };
-    var cost = 1, redeployed = false;
+    var cost = 1;
     var main = ctx.main, issuedTurn = ctx.issuedTurn, untilTurn = ctx.untilTurn;
     var locked = ctx.locked, committed = ctx.committed;
     if (!main) {
       main = lane;
       issuedTurn = state.turn;
-      untilTurn = state.turn + EFFORT_HORIZON - 1;
-      locked = true;
-      committed = true;
-    } else if (!locked) {
-      if (lane !== main) { cost++; redeployed = true; }
-      main = lane;
-      issuedTurn = state.turn;
-      untilTurn = state.turn + EFFORT_HORIZON - 1;
+      untilTurn = state.turn;
       locked = true;
       committed = true;
     } else if (lane !== main) {
       return {
         ok: false,
-        reason: 'Main effort is locked to ' + main + ' through turn ' + untilTurn + '.'
+        reason: 'Keep this turn’s actions on the ' + main + ' route.'
       };
     }
-    if (ctx.commands + cost > FIELD_COMMANDS) {
+    if (ctx.commands + cost > limit) {
       return {
         ok: false,
-        reason: redeployed
-          ? 'Redeploying and acting costs both field commands.'
-          : 'Both field commands are already committed.'
+        reason: 'All action slots are already committed.'
       };
     }
-    var mobilization = ctx.commands < FIELD_COMMANDS && ctx.commands + cost >= FIELD_COMMANDS
+    var mobilization = ctx.commands < limit && ctx.commands + cost >= limit
       ? MOBILIZATION_COST : 0;
     ctx.main = main;
     ctx.issuedTurn = issuedTurn;
@@ -298,8 +316,7 @@ CF.engine = (function () {
     ctx.committed = committed;
     ctx.commands += cost;
     ctx.mobilizationCost += mobilization;
-    if (redeployed) ctx.redeploys++;
-    return { ok: true, cost: cost, redeployed: redeployed, mobilizationCost: mobilization };
+    return { ok: true, cost: cost, redeployed: false, mobilizationCost: mobilization };
   }
 
   // UI and bots use the same deterministic command calculation as resolution.
@@ -374,11 +391,10 @@ CF.engine = (function () {
     s.supply = computeSupply(s);
     s.strategy = s.strategy || { 1: null, 2: null };
     s.reserve = s.reserve || { 1: 0, 2: 0 };
-    s.pressure = s.pressure || { staleTurns: 0, warned: false, bridgeTurns: 0, lastOpenedTurn: -99 };
+    s.pressure = s.pressure || { staleTurns: 0, warned: false };
     var fx = [];
     var line = [];
     var territoryChanged = false;
-    var bridgeWasActive = s.pressure.bridgeTurns > 0;
 
     var turnIncome = { 1: income(s, 1), 2: income(s, 2) };
     var reserveBefore = { 1: s.reserve[1] || 0, 2: s.reserve[2] || 0 };
@@ -404,10 +420,9 @@ CF.engine = (function () {
     }
     var cutBefore = { 1: cutOffCount(1), 2: cutOffCount(2) };
 
-    // Every territorial action uses field command. The first accepted action
-    // establishes a three-turn main effort. Once that lock expires, changing
-    // route spends an additional command on redeployment, leaving room for
-    // only one action that turn.
+    // Territorial actions share field commands. The first accepted route action
+    // sets this turn’s focus; later route actions stay on that front. Next turn
+    // begins with a clean route choice.
     [[1, ordersA], [2, ordersB]].forEach(function (pair) {
       var side = pair[0], list = pair[1] || [];
       var fortified = {};
@@ -473,7 +488,9 @@ CF.engine = (function () {
       var reserveUsed = Math.max(0, spent[side] - turnIncome[side]);
       var reserveLeft = Math.max(0, reserveBefore[side] - reserveUsed);
       var unspentIncome = Math.max(0, turnIncome[side] - spent[side]);
-      s.reserve[side] = Math.min(RESERVE_CAP, reserveLeft + Math.floor(unspentIncome / 2));
+      // Every unspent Supply is carried forward.  A visible resource should
+      // never disappear at a 2:1 exchange just because Moves are capped.
+      s.reserve[side] = Math.min(RESERVE_CAP, reserveLeft + unspentIncome);
     });
 
     var all = accepted[1].concat(accepted[2]);
@@ -644,31 +661,6 @@ CF.engine = (function () {
       fx.push({ kind: 'fortify', at: o.to, side: o.side });
     });
 
-    // A temporary pressure bridge remains usable for two complete turns, then
-    // cools back into the caldera before supply and starvation are evaluated.
-    if (bridgeWasActive) {
-      s.pressure.bridgeTurns--;
-      if (s.pressure.bridgeTurns <= 0) {
-        (s.pressureBridge || []).forEach(function (bi) {
-          var bridgeTile = s.tiles[bi];
-          if (!bridgeTile.temporaryBridge) return;
-          if (bridgeTile.owner) territoryChanged = true;
-          bridgeTile.land = false;
-          bridgeTile.owner = 0;
-          bridgeTile.str = 0;
-          bridgeTile.elev = 0;
-          bridgeTile.fert = 0;
-          bridgeTile.crater = 0;
-          bridgeTile.route = null;
-          bridgeTile.bridge = null;
-          bridgeTile.temporaryBridge = 0;
-          bridgeTile.pressureReserved = 1;
-          fx.push({ kind: 'sink', at: bi });
-        });
-        line.push({ cls: 'world', text: 'The temporary Cinder crossing sinks back into the caldera.' });
-      }
-    }
-
     // --- 4. supply and starvation ----------------------------------------
     s.supply = computeSupply(s);
     var starved = 0;
@@ -690,9 +682,9 @@ CF.engine = (function () {
     s.supply = computeSupply(s);
 
     // --- 5. Cinder Pressure ----------------------------------------------
-    // Stillness gets a warning, then capped fortifications decay, then a
-    // temporary central crossing opens. Cinder creates an attacking window;
-    // it never assigns ownership or directly cuts either side's supply.
+    // Stillness gets a warning, then capped fortifications decay. New resource
+    // opportunities come from Cinder's separately validated event choices,
+    // rather than by opening a special third route through the map.
     var cutAfter = { 1: cutOffCount(1), 2: cutOffCount(2) };
     var supplyShock = cutAfter[1] > cutBefore[1] || cutAfter[2] > cutBefore[2];
     if (territoryChanged || supplyShock) {
@@ -717,25 +709,6 @@ CF.engine = (function () {
           fx.push({ kind: 'pressure', at: ei });
         }
         if (eroded) line.push({ cls: 'world', text: 'Cinder Pressure strips one excess strength from ' + U.plural(eroded, 'front-line square') + '.' });
-      }
-      if (s.pressure.staleTurns >= 4 && s.pressure.bridgeTurns <= 0 &&
-          s.turn - s.pressure.lastOpenedTurn >= 4) {
-        (s.pressureBridge || []).forEach(function (bi) {
-          var bridgeTile = s.tiles[bi];
-          bridgeTile.land = true;
-          bridgeTile.owner = 0;
-          bridgeTile.str = 0;
-          bridgeTile.elev = 1;
-          bridgeTile.fert = 0;
-          bridgeTile.route = 'cross';
-          bridgeTile.bridge = 'pressure';
-          bridgeTile.temporaryBridge = 1;
-          bridgeTile.pressureReserved = 1;
-          fx.push({ kind: 'rise', at: bi });
-        });
-        s.pressure.bridgeTurns = 2;
-        s.pressure.lastOpenedTurn = s.turn;
-        line.push({ cls: 'world', text: 'CINDER PRESSURE: a central cross-caldera bridge opens for two turns. Cinder creates a window, not a winner.' });
       }
     }
     s.supply = computeSupply(s);
@@ -797,8 +770,7 @@ CF.engine = (function () {
       reserveAfter: { 1: s.reserve[1], 2: s.reserve[2] },
       strategy: U.deepClone(s.strategy),
       pressure: {
-        staleTurns: s.pressure.staleTurns,
-        bridgeTurns: s.pressure.bridgeTurns
+        staleTurns: s.pressure.staleTurns
       },
       beacon: holder,
       beaconTile: state.beacon,
@@ -886,7 +858,7 @@ CF.engine = (function () {
 
   return {
     COST: COST, SIDE: SIDE, MAX_TURNS: MAX_TURNS, BEACON_TO_WIN: BEACON_TO_WIN,
-    FIELD_COMMANDS: FIELD_COMMANDS, EFFORT_HORIZON: EFFORT_HORIZON,
+    FIELD_COMMANDS: FIELD_COMMANDS, fieldCommands: fieldCommands, EFFORT_HORIZON: EFFORT_HORIZON,
     MOBILIZATION_COST: MOBILIZATION_COST, SUPPORT_COST: SUPPORT_COST,
     RESERVE_CAP: RESERVE_CAP, SIEGE_SUPPORT_BONUS: SIEGE_SUPPORT_BONUS,
     FORTIFY_GAIN: FORTIFY_GAIN,
