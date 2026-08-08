@@ -92,6 +92,11 @@
           <span><i class="legend-relay">◇</i><b data-i18n="map.relay">Relay = cut supply</b></span>
           <span><i class="legend-beacon">★</i><b data-i18n="map.beacon">Beacon = score</b></span>
         </div>
+        <div class="quick-guide" aria-label="Quick play guide">
+          <span data-i18n="guide.glow">① glow = act</span>
+          <span data-i18n="guide.supply">② stay connected</span>
+          <span data-i18n="guide.goal">③ Relay cuts · Beacon wins</span>
+        </div>
         <div id="tooltip" class="hidden"></div>
         <div id="banner" class="hidden"><div class="banner-in"><h2 id="banner-title"></h2><p id="banner-sub"></p></div></div>
         <div id="gameover" class="hidden"><div class="go-in"><h2 id="go-title"></h2><p id="go-sub"></p><button id="go-again" class="btn primary">NEW RING</button></div></div>
@@ -134,13 +139,6 @@
           </div>
         </div>
 
-        <div id="opening-brief" class="opening-brief hidden" aria-live="polite"></div>
-        <div id="player-effort" class="effort-status">OPENING CALL</div>
-        <div class="quick-guide" aria-label="Quick play guide">
-          <span data-i18n="guide.glow">① glow = act</span>
-          <span data-i18n="guide.supply">② stay connected</span>
-          <span data-i18n="guide.goal">③ Relay cuts · Beacon wins</span>
-        </div>
         <section id="mock-result" class="mock-result hidden" aria-live="polite">
           <div class="mock-result-head"><b id="mock-result-title">MOCK PLAYER</b><span id="mock-result-source"></span></div>
           <p id="mock-result-intent"></p>
@@ -177,6 +175,15 @@
 
       <!-- ---------- CHRONICLE ---------- -->
       <div class="panel" id="tab-chronicle">
+        <section id="chronicle-brief" class="chronicle-brief hidden" aria-live="polite">
+          <div id="chronicle-brief-title"></div>
+          <p id="chronicle-brief-copy"></p>
+        </section>
+        <section id="chronicle-forecast" class="chronicle-forecast hidden" aria-live="polite">
+          <div id="chronicle-forecast-title"></div>
+          <p id="chronicle-forecast-copy"></p>
+          <small id="chronicle-forecast-count"></small>
+        </section>
         <p class="panel-note" data-i18n="chronicle.note">Every season the mountain acts, and every season it says why. Predictions are scored against what actually happened.</p>
         <div id="chronicle"></div>
       </div>
@@ -184,13 +191,13 @@
       <!-- ---------- CONSOLE ---------- -->
       <div class="panel" id="tab-console">
         <div class="con-block">
-          <div class="con-title" data-i18n="cinder.reading">CURRENT READING</div>
-          <pre id="con-report">Cinder is asleep. It wakes at the end of turn 3.</pre>
+          <div class="con-title" data-i18n="cinder.evidence">DECISION EVIDENCE</div>
+          <div id="con-reason" class="reason">—</div>
         </div>
 
         <div class="con-block">
-          <div class="con-title" data-i18n="cinder.evidence">DECISION EVIDENCE</div>
-          <div id="con-reason" class="reason">—</div>
+          <div class="con-title" data-i18n="cinder.profile">PLAYER PROFILE · RESOLVED HISTORY ONLY</div>
+          <div id="con-profile" class="player-profile">no resolved turns yet</div>
         </div>
 
         <div class="con-block">
@@ -198,46 +205,29 @@
           <pre id="con-candidates">no season evaluated yet</pre>
         </div>
 
-        <div class="con-block">
-          <div class="con-title" data-i18n="cinder.pending">PENDING EVENT</div>
-          <div id="con-pending" class="pending">none</div>
-          <div class="con-row">
-            <select id="con-override"></select>
-            <select id="con-intensity">
-              <option value="1">I</option><option value="2" selected>II</option><option value="3">III</option>
-            </select>
-            <button id="con-apply" class="mini solid" data-i18n="cinder.override">OVERRIDE</button>
+        <details id="demo-tools" class="demo-tools" open>
+          <summary><span data-i18n="cinder.demoTools">DEMO TOOLS</span><i aria-hidden="true">⌄</i></summary>
+          <div class="demo-tools-body">
+            <div class="con-block">
+              <div class="con-title" data-i18n="cinder.mockTitle">MOCK PLAYER · LLM TEST</div>
+              <p class="panel-note" data-i18n="cinder.mockNote">Ask the configured LLM for an Ashfarer doctrine. The legal bot turns it into a visible, valid queue; it never bypasses rules.</p>
+              <button id="con-mock" class="mini solid" data-i18n="cinder.mockButton">MOCK LLM MOVE</button>
+              <div id="con-mock-status" class="reason">ready — no mock move queued</div>
+            </div>
+
+            <div class="con-block demo-controls">
+              <div class="con-title" data-i18n="cinder.controls">DEMO CONTROLS</div>
+              <label class="chk"><input type="checkbox" id="con-pause"> <span data-i18n="cinder.pause">pause the director</span></label>
+              <label class="chk"><input type="checkbox" id="con-turtle"> <span data-i18n="cinder.turtle">force stalemate (both sides turtle)</span></label>
+              <label class="chk"><input type="checkbox" id="con-ai-fail"> <span data-i18n="cinder.fail">simulate AI failure (3s → FALLBACK)</span></label>
+              <div class="con-row">
+                <button id="con-fire" class="mini" data-i18n="cinder.fire">fire now</button>
+                <button id="con-new" class="mini" data-i18n="cinder.new">new ring</button>
+                <button id="con-clear-memory" class="mini" data-i18n="cinder.clearMemory">clear player memory</button>
+              </div>
+            </div>
           </div>
-        </div>
-
-        <div class="con-block">
-          <div class="con-title" data-i18n="cinder.controls">CONTROLS</div>
-          <label class="chk"><input type="checkbox" id="con-pause"> <span data-i18n="cinder.pause">pause the director</span></label>
-          <label class="chk"><input type="checkbox" id="con-turtle"> <span data-i18n="cinder.turtle">force stalemate (both sides turtle)</span></label>
-          <label class="chk"><input type="checkbox" id="con-ai-fail"> <span data-i18n="cinder.fail">simulate AI failure (3s → FALLBACK)</span></label>
-          <div class="con-row">
-            <button id="con-fire" class="mini" data-i18n="cinder.fire">fire now</button>
-            <button id="con-new" class="mini" data-i18n="cinder.new">new ring</button>
-            <button id="con-clear-memory" class="mini" data-i18n="cinder.clearMemory">clear player memory</button>
-          </div>
-        </div>
-
-        <div class="con-block">
-          <div class="con-title" data-i18n="cinder.mockTitle">MOCK PLAYER · LLM TEST</div>
-          <p class="panel-note" data-i18n="cinder.mockNote">Ask the configured LLM for an Ashfarer doctrine. The legal bot turns it into a visible, valid queue; it never bypasses rules.</p>
-          <button id="con-mock" class="mini solid" data-i18n="cinder.mockButton">MOCK LLM MOVE</button>
-          <div id="con-mock-status" class="reason">ready — no mock move queued</div>
-        </div>
-
-        <div class="con-block">
-          <div class="con-title" data-i18n="cinder.memory">TEMPLATE MEMORY</div>
-          <div id="con-memory" class="memory">no history yet</div>
-        </div>
-
-        <div class="con-block">
-          <div class="con-title" data-i18n="cinder.profile">PLAYER PROFILE · RESOLVED HISTORY ONLY</div>
-          <pre id="con-profile">no resolved turns yet</pre>
-        </div>
+        </details>
       </div>
 
     </aside>
@@ -293,42 +283,34 @@
     <!-- 2. read the map -->
     <section class="slide" data-slide="1">
       <div class="sheet lesson-sheet">
-        <div class="sheet-kicker" data-i18n="intro.map.kicker">1 / 3 · READ THE FIELD</div>
+        <div class="sheet-kicker" data-i18n="intro.map.kicker">1 / 2 · READ THE FIELD</div>
         <h2 data-i18n="intro.map.title">Two fronts. One clear objective.</h2>
         <div class="lesson-layout">
-          <div class="lesson-visual ladder-lesson">
-            <svg viewBox="0 0 520 245" role="img" aria-label="Two-front map with Relays and a Beacon">
-              <path class="demo-route north" d="M66 62 H454"></path>
-              <path class="demo-route south" d="M66 183 H454"></path>
-              <g class="demo-nodes">
-                <rect class="demo-cap ash" x="42" y="41" width="48" height="42"></rect>
-                <rect x="165" y="41" width="50" height="42"></rect>
-                <rect class="relay" x="305" y="41" width="23" height="42"></rect>
-                <rect class="relay" x="332" y="41" width="23" height="42"></rect>
-                <rect class="demo-cap salt" x="430" y="41" width="48" height="42"></rect>
-                <rect class="demo-cap ash" x="42" y="162" width="48" height="42"></rect>
-                <rect class="relay" x="165" y="162" width="23" height="42"></rect>
-                <rect class="relay" x="192" y="162" width="23" height="42"></rect>
-                <rect x="305" y="162" width="50" height="42"></rect>
-                <rect class="demo-cap salt" x="430" y="162" width="48" height="42"></rect>
-              </g>
-              <text x="38" y="28">ASHFARERS</text><text x="401" y="28">SALTKIN</text>
-              <g class="demo-route-label north">
-                <rect x="184" y="4" width="152" height="24"></rect>
-                <text x="260" y="16" text-anchor="middle" data-i18n="intro.map.north">NORTH ROUTE</text>
-              </g>
-              <g class="demo-route-label south">
-                <rect x="184" y="214" width="152" height="24"></rect>
-                <text x="260" y="226" text-anchor="middle" data-i18n="intro.map.south">SOUTH ROUTE</text>
-              </g>
-              <text class="relay-label" x="278" y="107" data-i18n="intro.map.relay">RELAY PAIR</text>
-              <text class="beacon-label" x="237" y="136" data-i18n="intro.map.beacon">★ BEACON</text>
-              <path id="advance-path" d="M76 62 H388" fill="none"></path>
-              <circle class="demo-scout" r="9">
-                <animateMotion dur="5s" repeatCount="indefinite"><mpath href="#advance-path"></mpath></animateMotion>
-              </circle>
-            </svg>
-            <div class="visual-caption" data-i18n="intro.map.caption">Choose a front → contest its Relay → keep the Beacon supplied.</div>
+          <div class="lesson-visual field-map-lesson">
+            <div class="guide-live-map" role="img" aria-label="The current game board with route and objective labels">
+              <canvas id="guide-map-canvas"></canvas>
+              <div class="guide-map-mask" aria-hidden="true">
+                <svg class="guide-route-arrows" viewBox="0 0 100 100" preserveAspectRatio="none">
+                  <defs><marker id="guide-route-tip" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0L10 5L0 10Z"></path></marker></defs>
+                  <path class="north" d="M16 30H84" marker-end="url(#guide-route-tip)"></path>
+                  <path class="south" d="M16 70H84" marker-end="url(#guide-route-tip)"></path>
+                </svg>
+                <svg class="guide-callout-lines" viewBox="0 0 100 100" preserveAspectRatio="none">
+                  <line class="ash" data-guide-line="capital-a"></line>
+                  <line class="salt" data-guide-line="capital-b"></line>
+                  <line class="relay" data-guide-line="relay"></line>
+                  <line class="beacon" data-guide-line="beacon"></line>
+                </svg>
+                <span class="guide-map-tag route north" data-guide-label="north" data-i18n="intro.map.north">NORTH ROUTE</span>
+                <span class="guide-map-tag route south" data-guide-label="south" data-i18n="intro.map.south">SOUTH ROUTE</span>
+                <span class="guide-map-tag home ash" data-guide-label="capital-a" data-i18n="intro.map.capitalYou">① YOU</span>
+                <span class="guide-map-tag home salt" data-guide-label="capital-b" data-i18n="intro.map.capitalRival">RIVAL</span>
+                <span class="guide-map-tag relay" data-guide-label="relay" data-i18n="intro.map.relay">② RELAY</span>
+                <span class="guide-map-tag beacon" data-guide-label="beacon" data-i18n="intro.map.beacon">③ BEACON</span>
+              </div>
+              <div class="guide-flow-strip"><span data-i18n="intro.map.flowStart">① start at your capital</span><i>→</i><span data-i18n="intro.map.flowRelay">② take both Relay tiles</span><i>→</i><span data-i18n="intro.map.flowBeacon">③ keep Beacon supplied</span></div>
+            </div>
+            <p class="field-attribute-note" data-i18n="intro.map.attributes">Top-left pips show Height: each point adds 1 Defence. Green glow shows Fertility: it provides Supply while connected to your capital.</p>
           </div>
           <div class="lesson-copy">
             <div class="rule-step"><b data-i18n="intro.map.step1.title">Choose a front.</b><span data-i18n="intro.map.step1.body">North and South use the same rules. The opening flame marks a shared early Supply bonus.</span></div>
@@ -342,20 +324,20 @@
     <!-- 3. fund a turn -->
     <section class="slide" data-slide="2">
       <div class="sheet lesson-sheet">
-        <div class="sheet-kicker" data-i18n="intro.economy.kicker">2 / 3 · PLAN A TURN</div>
-        <h2 data-i18n="intro.economy.title">Every turn has Supply and Moves.</h2>
+        <div class="sheet-kicker" data-i18n="intro.economy.kicker">2 / 2 · PLAY A TURN</div>
+        <h2 data-i18n="intro.economy.title">Choose, click, resolve.</h2>
         <div class="lesson-layout">
           <div class="lesson-visual quick-start-lesson">
-            <div class="quick-start-title" data-i18n="intro.economy.visualTitle">A TURN IN THREE CLICKS</div>
             <div class="quick-start-step"><b>1</b><span><strong data-i18n="intro.economy.visual1.title">Choose an action</strong><em data-i18n="intro.economy.visual1.body">Claim 3 · Hold 2 · Attack 1</em></span></div>
             <div class="quick-start-step"><b>2</b><span><strong data-i18n="intro.economy.visual2.title">Click a glowing tile</strong><em data-i18n="intro.economy.visual2.body">Glow means this action is legal.</em></span></div>
             <div class="quick-start-step"><b>3</b><span><strong data-i18n="intro.economy.visual3.title">End the turn</strong><em data-i18n="intro.economy.visual3.body">Both sides resolve at the same time.</em></span></div>
           </div>
           <div class="lesson-copy">
-            <p class="lesson-lead" data-i18n="intro.economy.lead">You only need to read two numbers: Moves limit how many orders you queue; Supply pays their cost.</p>
-            <div class="rule-step"><b data-i18n="intro.economy.step1.title">Follow the visible prompts.</b><span data-i18n="intro.economy.step1.body">If a tile glows, your selected action can be used there. If a button is grey, its requirement is not met yet.</span></div>
-            <div class="rule-step"><b data-i18n="intro.economy.step2.title">Stay on one route this turn.</b><span data-i18n="intro.economy.step2.body">Your first route action selects North or South. Next turn you can choose either route again.</span></div>
-            <div class="rule-step"><b data-i18n="intro.economy.step3.title">Everything else is optional.</b><span data-i18n="intro.economy.step3.body">Unused Supply becomes Reserve. Combo only appears after linked orders; you can safely ignore it at first.</span></div>
+            <div class="turn-rule-list">
+              <div class="quick-start-step rule-number-card"><b>1</b><span><strong data-i18n="intro.economy.step1.title">Moves = order limit.</strong><em data-i18n="intro.economy.step1.body">Every queued action uses one Move.</em></span></div>
+              <div class="quick-start-step rule-number-card"><b>2</b><span><strong data-i18n="intro.economy.step2.title">Supply = spending limit.</strong><em data-i18n="intro.economy.step2.body">Supply pays each action's shown cost.</em></span></div>
+              <div class="quick-start-step rule-number-card"><b>3</b><span><strong data-i18n="intro.economy.step3.title">End Turn = resolve together.</strong><em data-i18n="intro.economy.step3.body">Both queues reveal and resolve at the same time.</em></span></div>
+            </div>
           </div>
         </div>
       </div>
@@ -438,12 +420,11 @@
     <nav class="intro-nav">
       <button id="intro-back" class="btn intro-back" disabled><span data-i18n="intro.back">BACK</span> <kbd>←</kbd></button>
       <div class="intro-position">
-        <span id="intro-progress">1 OF 4</span>
+        <span id="intro-progress">1 OF 3</span>
         <div class="dots" aria-label="Tutorial pages">
           <button class="dot-nav active" type="button" data-go="0" aria-label="Introduction" aria-current="step"></button>
           <button class="dot-nav" type="button" data-go="1" aria-label="Read the map"></button>
-          <button class="dot-nav" type="button" data-go="2" aria-label="Plan a turn"></button>
-          <button class="dot-nav" type="button" data-go="3" aria-label="Resolve and survive"></button>
+          <button class="dot-nav" type="button" data-go="2" aria-label="Play a turn"></button>
         </div>
       </div>
       <button id="intro-next" class="btn primary intro-next">READ THE RING <kbd>→</kbd></button>

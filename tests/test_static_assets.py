@@ -46,7 +46,7 @@ class StaticAssetTests(unittest.TestCase):
 
     def test_all_script_assets_exist_and_ai_order_is_safe(self):
         for source in self.parser.scripts:
-            self.assertTrue((ROOT / source).is_file(), source)
+            self.assertTrue((ROOT / source.split("?", 1)[0]).is_file(), source)
         order = self.parser.scripts
         self.assertLess(order.index("js/engine.js"), order.index("js/profile.js"))
         self.assertLess(order.index("js/events.js"), order.index("js/bot.js"))
@@ -79,14 +79,20 @@ class StaticAssetTests(unittest.TestCase):
         self.assertIn('id="intro-progress"', self.html)
         self.assertIn('id="settings-tutorial"', self.html)
         self.assertIn("READ THE RING", self.html)
-        self.assertIn("PLAN A TURN", self.html)
+        self.assertIn("PLAY A TURN", self.html)
         self.assertIn("CHOOSE A FRONT", self.html)
         self.assertIn("RESOLVE AND SURVIVE", self.html)
         self.assertIn("CINDER AND VICTORY", self.html)
         self.assertIn("setScene: setScene", self.intro)
-        self.assertIn("var slides = [allSlides[0], allSlides[1], allSlides[2], allSlides[4]];", self.main)
+        self.assertIn("var slides = [allSlides[0], allSlides[1], allSlides[2]];", self.main)
         self.assertIn("+slides[slide].dataset.slide", self.main)
-        self.assertEqual(self.html.count('class="dot-nav'), 4)
+        self.assertEqual(self.html.count('class="dot-nav'), 3)
+        self.assertIn('field-map-lesson', self.html)
+        self.assertIn('id="guide-map-canvas"', self.html)
+        self.assertIn('function paintGuideMap()', self.main)
+        self.assertIn('id="introcanvas"', self.html)
+        self.assertIn('function drawRing(', self.intro)
+        self.assertIn('var GW = 26, GH = 17;', self.intro)
         self.assertIn("@keyframes command-commit", self.css)
         self.assertIn("@keyframes attack-dash", self.css)
         self.assertIn("prefers-reduced-motion", self.css)
@@ -98,7 +104,7 @@ class StaticAssetTests(unittest.TestCase):
         # Both language objects use the same tutorial vocabulary. The Chinese
         # copies below deliberately include the full rule pages, not only the
         # three pages that the earlier quick-start exposed.
-        self.assertIn("'intro.economy.kicker': '2 / 3 · 规划本回合'", self.main)
+        self.assertIn("'intro.economy.kicker': '2 / 2 · 进行一回合'", self.main)
         self.assertIn("'intro.effort.kicker': '3 / 5 · 选择战线'", self.main)
         self.assertIn("'intro.combat.kicker': '3 / 3 · 同步结算与生存'", self.main)
 

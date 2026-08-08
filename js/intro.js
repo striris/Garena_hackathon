@@ -39,14 +39,11 @@ CF.intro = (function () {
     var cx = (GW - 1) / 2, cy = (GH - 1) / 2;
     for (var y = 0; y < GH; y++) {
       for (var x = 0; x < GW; x++) {
-        // The ring has to read as an atoll: open sea outside it, and a wide
-        // dark caldera inside where the mountain shows through. Normalising
-        // to a third of the grid leaves margin on both.
         var dx = (x - cx) / (GW * 0.365), dy = (y - cy) / (GH * 0.365);
         var r = Math.sqrt(dx * dx + dy * dy);
         var n = (U.hash32(x * 6151 + y * 13093) - 0.5) * 0.17;
         if (Math.abs(r - 1) + n > 0.21) continue;
-        var ang = Math.atan2(y - cy, x - cx);          // -PI..PI
+        var ang = Math.atan2(y - cy, x - cx);
         cells.push({
           x: x, y: y, ang: ang, r: r,
           elev: U.clamp(Math.round(2 + (r - 1) * 7 + (U.hash32(x * 31 + y * 977) - .5) * 1.4), 1, 3),
@@ -103,8 +100,6 @@ CF.intro = (function () {
     var cxp = g.ox + g.ts * GW / 2;
     var cyp = g.oy + g.ts * GH / 2;
 
-    // the border between the two peoples grinds back and forth: neither
-    // of them is winning, which is exactly the problem
     var sceneDrive = scene === 4 ? 1.55 : scene === 3 ? 1.25 : 1;
     var push = (Math.sin(t * 0.42) * 0.30 + Math.sin(t * 0.17 + 1.3) * 0.16) * sceneDrive;
 
@@ -207,24 +202,18 @@ CF.intro = (function () {
   }
 
   function ownerOf(cell, push) {
-    // west is Ashfarers, east is Saltkin; the seam is where |angle| is
-    // near a right angle, and it slides with `push`
-    var s = Math.cos(cell.ang);           // +1 east, -1 west
+    var s = Math.cos(cell.ang);
     return s + push * 0.75 > 0 ? 2 : 1;
   }
 
   function drawRing(t, g, push, eruptPulse, cxp, cyp) {
     var ts = g.ts;
-
-    // land shadow, one pass, so the ring reads as a single body
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,0.85)';
     ctx.shadowBlur = 18;
     ctx.shadowOffsetY = 6;
     ctx.fillStyle = '#0a0910';
-    cells.forEach(function (c) {
-      ctx.fillRect(g.ox + c.x * ts, g.oy + c.y * ts, ts, ts);
-    });
+    cells.forEach(function (c) { ctx.fillRect(g.ox + c.x * ts, g.oy + c.y * ts, ts, ts); });
     ctx.restore();
 
     cells.forEach(function (c) {
@@ -232,114 +221,76 @@ CF.intro = (function () {
       var own = ownerOf(c, push);
       var col = own === 1 ? '#3ddc84' : '#ff8a3d';
       var deep = own === 1 ? '#0f6b45' : '#7a3410';
-
-      // rock
       var base = c.elev >= 3 ? 92 : c.elev === 2 ? 70 : 52;
       var j = (c.seed - .5) * 14;
       ctx.fillStyle = 'rgb(' + Math.round(base + j) + ',' + Math.round(base - 8 + j) + ',' + Math.round(base + 6 + j) + ')';
       ctx.fillRect(X, Y, ts, ts);
-
       var lg = ctx.createLinearGradient(X, Y, X, Y + ts);
       lg.addColorStop(0, 'rgba(255,255,255,' + (0.02 + c.elev * 0.03) + ')');
       lg.addColorStop(1, 'rgba(0,0,0,0.32)');
-      ctx.fillStyle = lg;
-      ctx.fillRect(X, Y, ts, ts);
-
-      // soil
+      ctx.fillStyle = lg; ctx.fillRect(X, Y, ts, ts);
       if (c.fert > 0) {
-        ctx.save();
-        ctx.globalAlpha = 0.10 + c.fert * 0.07;
-        ctx.fillStyle = '#7fe0a8';
-        ctx.fillRect(X, Y, ts, ts);
-        ctx.restore();
+        ctx.save(); ctx.globalAlpha = 0.10 + c.fert * 0.07;
+        ctx.fillStyle = '#7fe0a8'; ctx.fillRect(X, Y, ts, ts); ctx.restore();
       }
-
-      // ownership
       var og = ctx.createLinearGradient(X, Y, X + ts, Y + ts);
-      og.addColorStop(0, hexA(col, 0.36));
-      og.addColorStop(1, hexA(deep, 0.44));
-      ctx.fillStyle = og;
-      ctx.fillRect(X, Y, ts, ts);
-
-      // the eruption washes over everything for a moment
+      og.addColorStop(0, hexA(col, 0.36)); og.addColorStop(1, hexA(deep, 0.44));
+      ctx.fillStyle = og; ctx.fillRect(X, Y, ts, ts);
       if (eruptPulse > 0) {
         var d = Math.hypot(X + ts / 2 - cxp, Y + ts / 2 - cyp) / ts;
         var front = (1 - eruptPulse) * 11;
         var near = Math.max(0, 1 - Math.abs(d - front) / 2.2);
         if (near > 0) {
-          ctx.save();
-          ctx.globalCompositeOperation = 'lighter';
-          ctx.globalAlpha = near * eruptPulse * 0.85;
-          ctx.fillStyle = '#ff9a3a';
-          ctx.fillRect(X, Y, ts, ts);
-          ctx.restore();
+          ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = near * eruptPulse * 0.85;
+          ctx.fillStyle = '#ff9a3a'; ctx.fillRect(X, Y, ts, ts); ctx.restore();
         }
       }
     });
 
-    // territory outlines
     var owners = {};
     cells.forEach(function (c) { owners[c.x + ',' + c.y] = ownerOf(c, push); });
-    ctx.save();
-    ctx.lineCap = 'round';
+    ctx.save(); ctx.lineCap = 'round';
     cells.forEach(function (c) {
       var own = owners[c.x + ',' + c.y];
       var col = own === 1 ? '#3ddc84' : '#ff8a3d';
       ctx.strokeStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 10; ctx.lineWidth = 2.2;
       var X = g.ox + c.x * ts, Y = g.oy + c.y * ts;
-      var sides = [
-        [c.x - 1, c.y, X, Y, X, Y + ts],
-        [c.x + 1, c.y, X + ts, Y, X + ts, Y + ts],
-        [c.x, c.y - 1, X, Y, X + ts, Y],
-        [c.x, c.y + 1, X, Y + ts, X + ts, Y + ts]
-      ];
-      sides.forEach(function (s) {
+      [[c.x - 1, c.y, X, Y, X, Y + ts], [c.x + 1, c.y, X + ts, Y, X + ts, Y + ts],
+       [c.x, c.y - 1, X, Y, X + ts, Y], [c.x, c.y + 1, X, Y + ts, X + ts, Y + ts]].forEach(function (s) {
         if (owners[s[0] + ',' + s[1]] === own) return;
         ctx.beginPath(); ctx.moveTo(s[2], s[3]); ctx.lineTo(s[4], s[5]); ctx.stroke();
       });
     });
     ctx.restore();
 
-    // the Beacon, sitting on the northern arc
     var bc = beaconCell();
     if (bc) {
       var bx = g.ox + bc.x * ts + ts / 2, by = g.oy + bc.y * ts + ts / 2;
       var p = 0.5 + 0.5 * Math.sin(t * 2.2);
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
       var bg = ctx.createRadialGradient(bx, by, 0, bx, by, ts * (2.2 + p * 0.6));
       bg.addColorStop(0, 'rgba(255,225,150,' + (0.5 + p * 0.2) + ')');
-      bg.addColorStop(0.4, 'rgba(255,170,60,0.15)');
-      bg.addColorStop(1, 'rgba(255,120,0,0)');
-      ctx.fillStyle = bg;
-      ctx.fillRect(bx - ts * 3, by - ts * 3, ts * 6, ts * 6);
-      ctx.restore();
-
-      ctx.save();
-      ctx.translate(bx, by);
-      ctx.shadowColor = '#ffd15c'; ctx.shadowBlur = 18;
+      bg.addColorStop(0.4, 'rgba(255,170,60,0.15)'); bg.addColorStop(1, 'rgba(255,120,0,0)');
+      ctx.fillStyle = bg; ctx.fillRect(bx - ts * 3, by - ts * 3, ts * 6, ts * 6); ctx.restore();
+      ctx.save(); ctx.translate(bx, by); ctx.shadowColor = '#ffd15c'; ctx.shadowBlur = 18;
       ctx.beginPath();
       var R = ts * 0.42, r2 = R * 0.42;
       for (var v = 0; v < 10; v++) {
-        var a = v / 10 * Math.PI * 2 - Math.PI / 2;
-        var rad = v % 2 === 0 ? R : r2;
+        var a = v / 10 * Math.PI * 2 - Math.PI / 2, rad = v % 2 === 0 ? R : r2;
         var px = Math.cos(a) * rad, py = Math.sin(a) * rad;
         if (v === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
       }
       ctx.closePath();
       var sg = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
       sg.addColorStop(0, '#fffbe8'); sg.addColorStop(0.55, '#ffd15c'); sg.addColorStop(1, '#ff8a2a');
-      ctx.fillStyle = sg; ctx.fill();
-      ctx.restore();
+      ctx.fillStyle = sg; ctx.fill(); ctx.restore();
     }
   }
 
   var _beacon = null;
   function beaconCell() {
     if (_beacon) return _beacon;
-    // topmost cell nearest the vertical centreline
-    var best = null, bs = 1e9;
-    var cx = (GW - 1) / 2;
+    var best = null, bs = 1e9, cx = (GW - 1) / 2;
     cells.forEach(function (c) {
       var s = c.y * 3 + Math.abs(c.x - cx);
       if (s < bs) { bs = s; best = c; }
@@ -348,25 +299,164 @@ CF.intro = (function () {
     return best;
   }
 
-  // fighting along the seam: sparks where jade meets orange
-  function drawSparks(t, g, push) {
+  function routeCells(lane) {
+    return cells.filter(function (c) { return c.lane === lane && c.x >= 4 && c.x <= 25; })
+      .sort(function (a, b) { return a.x - b.x || a.y - b.y; });
+  }
+
+  function cellCentre(c, g) {
+    return { x: g.ox + (c.x + 0.5) * g.ts, y: g.oy + (c.y + 0.5) * g.ts };
+  }
+
+  function drawFront(c, g, colour, alpha) {
+    if (!c) return;
+    var p = cellCentre(c, g), R = g.ts * 1.55;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    var glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, R);
+    glow.addColorStop(0, hexA(colour, alpha));
+    glow.addColorStop(0.42, hexA(colour, alpha * 0.30));
+    glow.addColorStop(1, hexA(colour, 0));
+    ctx.fillStyle = glow;
+    ctx.fillRect(p.x - R, p.y - R, R * 2, R * 2);
+    ctx.strokeStyle = hexA(colour, alpha * 0.95);
+    ctx.lineWidth = 1.6;
+    ctx.strokeRect(p.x - g.ts * .34, p.y - g.ts * .34, g.ts * .68, g.ts * .68);
+    ctx.restore();
+  }
+
+  function drawBeacon(c, g, t) {
+    if (!c) return;
+    var p = cellCentre(c, g), pulse = .5 + .5 * Math.sin(t * 2.2), R = g.ts * .42;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.shadowColor = '#ffd15c'; ctx.shadowBlur = 16;
+    ctx.translate(p.x, p.y);
+    ctx.beginPath();
+    for (var v = 0; v < 10; v++) {
+      var a = v / 10 * Math.PI * 2 - Math.PI / 2;
+      var rad = v % 2 === 0 ? R * (1 + pulse * .12) : R * .42;
+      var px = Math.cos(a) * rad, py = Math.sin(a) * rad;
+      if (v === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    var star = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
+    star.addColorStop(0, '#fffbe8'); star.addColorStop(.55, '#ffd15c'); star.addColorStop(1, '#ff8a2a');
+    ctx.fillStyle = star; ctx.fill();
+    ctx.restore();
+  }
+
+  function drawRouteBeds(g, t) {
     var ts = g.ts;
-    var seam = cells.filter(function (c) {
-      var own = ownerOf(c, push);
-      var n = cells.filter(function (o) {
-        return Math.abs(o.x - c.x) + Math.abs(o.y - c.y) === 1 && ownerOf(o, push) !== own;
-      });
-      return n.length > 0;
+    function point(x, y) { return { x: g.ox + (x + .5) * ts, y: g.oy + (y + .5) * ts }; }
+    function ribbon(lane, colour) {
+      var y = lane === 'north' ? 3.5 : 13.5;
+      var a = point(2.5, 8.5), b = point(4, y), c = point(25, y), d = point(27.5, 8.5);
+      ctx.save();
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.strokeStyle = colour; ctx.lineWidth = ts * 2.9;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.quadraticCurveTo(b.x, b.y, point(9, y).x, point(9, y).y);
+      ctx.lineTo(point(21, y).x, point(21, y).y);
+      ctx.quadraticCurveTo(c.x, c.y, d.x, d.y);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(180,217,227,.12)'; ctx.lineWidth = ts * .16;
+      ctx.setLineDash([ts * .35, ts * .48]); ctx.lineDashOffset = -t * 8;
+      ctx.stroke();
+      ctx.restore();
+    }
+    ribbon('north', 'rgba(71,135,165,.20)');
+    ribbon('south', 'rgba(86,146,129,.19)');
+  }
+
+  function drawTopology(t, g, eruptPulse, cxp, cyp, sceneDrive) {
+    var ts = g.ts;
+    // The wide terrain beds make the two-front silhouette immediately legible
+    // at homepage scale; the smaller squares are texture rather than a second
+    // instructional map.
+    drawRouteBeds(g, t);
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,.8)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
+    ctx.fillStyle = '#070b11';
+    cells.forEach(function (c) { ctx.fillRect(g.ox + c.x * ts, g.oy + c.y * ts, ts, ts); });
+    ctx.restore();
+
+    cells.forEach(function (c) {
+      var X = g.ox + c.x * ts, Y = g.oy + c.y * ts;
+      var j = (c.seed - .5) * 12;
+      var base = c.kind === 'fan' ? [56, 83, 96] : c.lane === 'north' ? [45, 94, 116] : [57, 101, 94];
+      var tone = c.elev >= 3 ? 12 : c.elev === 1 ? -7 : 0;
+      ctx.fillStyle = 'rgb(' + Math.round(base[0] + j + tone) + ',' + Math.round(base[1] + j + tone) + ',' + Math.round(base[2] + j + tone) + ')';
+      ctx.fillRect(X, Y, ts, ts);
+      var shade = ctx.createLinearGradient(X, Y, X, Y + ts);
+      shade.addColorStop(0, 'rgba(222,244,255,' + (.035 + c.fert * .02) + ')');
+      shade.addColorStop(1, 'rgba(0,0,0,.34)');
+      ctx.fillStyle = shade; ctx.fillRect(X, Y, ts, ts);
+      ctx.strokeStyle = 'rgba(192,224,233,.25)'; ctx.lineWidth = .9;
+      ctx.strokeRect(X + .4, Y + .4, ts - .8, ts - .8);
+
+      if (eruptPulse > 0) {
+        var d = Math.hypot(X + ts / 2 - cxp, Y + ts / 2 - cyp) / ts;
+        var front = (1 - eruptPulse) * 11;
+        var near = Math.max(0, 1 - Math.abs(d - front) / 2.2);
+        if (near > 0) {
+          ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = near * eruptPulse * .58;
+          ctx.fillStyle = '#ff9a3a'; ctx.fillRect(X, Y, ts, ts); ctx.restore();
+        }
+      }
     });
 
-    if (seam.length && Math.random() < 0.55) {
-      var c = seam[Math.floor(Math.random() * seam.length)];
-      var X = g.ox + c.x * ts + ts / 2, Y = g.oy + c.y * ts + ts / 2;
-      for (var k = 0; k < 7; k++) {
-        var a = Math.random() * Math.PI * 2, v = 0.4 + Math.random() * 1.6;
-        sparks.push({ x: X, y: Y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 0.4,
-          life: 1, decay: 0.02 + Math.random() * 0.03, size: 1 + Math.random() * 2,
-          color: Math.random() < .5 ? '#fff2c8' : (Math.random() < .5 ? '#3ddc84' : '#ff8a3d') });
+    // A pair of small travelling fronts imply opposition without splitting
+    // the entire field into two loud team-colour blocks.
+    var active = (Math.floor(t / 7) + (scene >= 3 ? 1 : 0)) % 2 ? 'south' : 'north';
+    ['north', 'south'].forEach(function (lane, laneIndex) {
+      var path = routeCells(lane);
+      var row = lane === 'north' ? 3 : 13;
+      var core = path.filter(function (c) { return c.x >= 5 && c.x <= 24 && c.y === row; });
+      var travel = .13 + (.5 + .5 * Math.sin(t * .31 + laneIndex * 1.7)) * .29;
+      var intensity = lane === active ? 1 : .46;
+      var left = core[Math.floor((core.length - 1) * travel)];
+      var right = core[Math.max(0, core.length - 1 - Math.floor((core.length - 1) * travel))];
+      drawFront(left, g, '#a8d8e5', .74 * intensity * sceneDrive);
+      drawFront(right, g, '#eaa36d', .62 * intensity * sceneDrive);
+
+      [9, 20].forEach(function (x) {
+        path.filter(function (c) { return c.x === x; }).forEach(function (c) {
+          var p = cellCentre(c, g);
+          ctx.save(); ctx.strokeStyle = 'rgba(255,213,122,' + (.34 + intensity * .24) + ')'; ctx.lineWidth = 1.35;
+          ctx.strokeRect(p.x - ts * .31, p.y - ts * .31, ts * .62, ts * .62); ctx.restore();
+        });
+      });
+
+      var beacon = path.filter(function (c) { return c.x === 15 && c.y === row; })[0];
+      if (lane === active) drawBeacon(beacon, g, t);
+    });
+
+    // A faint moving contour around the caldera carries the idea that the
+    // field is being reorganised, without looking like a third playable lane.
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = 'rgba(255,157,72,.22)'; ctx.lineWidth = 1.4;
+    ctx.setLineDash([ts * .32, ts * .6]); ctx.lineDashOffset = t * 11;
+    ctx.beginPath(); ctx.ellipse(cxp, cyp, ts * 5.2, ts * 3.3, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+
+  // Sparks now occur around the current pressure points rather than a fixed
+  // ownership seam, so the background reads as a living contest.
+  function drawTopologySparks(t, g, sceneDrive) {
+    var ts = g.ts;
+    var active = (Math.floor(t / 7) + (scene >= 3 ? 1 : 0)) % 2 ? 'south' : 'north';
+    var candidates = routeCells(active).filter(function (c) { return c.x >= 10 && c.x <= 20; });
+    if (candidates.length && Math.random() < .42 * sceneDrive) {
+      var c = candidates[Math.floor(Math.random() * candidates.length)];
+      var p = cellCentre(c, g);
+      for (var k = 0; k < 5; k++) {
+        var a = Math.random() * Math.PI * 2, v = .4 + Math.random() * 1.45;
+        sparks.push({ x: p.x, y: p.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - .4,
+          life: 1, decay: .022 + Math.random() * .03, size: 1 + Math.random() * 1.8,
+          color: Math.random() < .5 ? '#fff2c8' : (Math.random() < .5 ? '#a8d8e5' : '#ffae66') });
       }
     }
 
@@ -379,6 +469,35 @@ CF.intro = (function () {
       ctx.globalAlpha = p.life;
       ctx.fillStyle = p.color;
       ctx.fillRect(p.x, p.y, p.size, p.size);
+    }
+    ctx.restore();
+    if (sparks.length > 500) sparks.splice(0, sparks.length - 500);
+  }
+
+  function drawSparks(t, g, push) {
+    var ts = g.ts;
+    var seam = cells.filter(function (c) {
+      var own = ownerOf(c, push);
+      return cells.some(function (o) {
+        return Math.abs(o.x - c.x) + Math.abs(o.y - c.y) === 1 && ownerOf(o, push) !== own;
+      });
+    });
+    if (seam.length && Math.random() < 0.55) {
+      var c = seam[Math.floor(Math.random() * seam.length)];
+      var X = g.ox + c.x * ts + ts / 2, Y = g.oy + c.y * ts + ts / 2;
+      for (var k = 0; k < 7; k++) {
+        var a = Math.random() * Math.PI * 2, v = 0.4 + Math.random() * 1.6;
+        sparks.push({ x: X, y: Y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 0.4,
+          life: 1, decay: 0.02 + Math.random() * 0.03, size: 1 + Math.random() * 2,
+          color: Math.random() < .5 ? '#fff2c8' : (Math.random() < .5 ? '#3ddc84' : '#ff8a3d') });
+      }
+    }
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (var i = sparks.length - 1; i >= 0; i--) {
+      var p = sparks[i];
+      p.x += p.vx; p.y += p.vy; p.vy += 0.03; p.life -= p.decay;
+      if (p.life <= 0) { sparks.splice(i, 1); continue; }
+      ctx.globalAlpha = p.life; ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.size, p.size);
     }
     ctx.restore();
     if (sparks.length > 500) sparks.splice(0, sparks.length - 500);

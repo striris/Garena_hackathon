@@ -1,24 +1,70 @@
 # CINDERFALL
 
-**A compact strategy game set on a volcanic ring that never stays the same.**
+**A compact living-map strategy game about choosing a front, protecting a
+supply line, and turning a changing battlefield into an opportunity.**
 
-You command the Ashfarers against the Saltkin. Expand through the North or
-South route, cut an enemy supply line at a Relay, and keep the Beacon connected
-to your capital long enough to win.
+Lead the **Ashfarers** against the rival **Saltkin** on a volcanic island ring.
+Each match centres on two clear routes—North and South. Grow a connected line,
+pressure the opposing route, and hold the Beacon long enough to win. The world
+does not stay still: Cinder can reshape the next opportunity after a turn has
+resolved, giving both sides a new decision rather than a hidden advantage.
 
-CINDERFALL is designed as a short, readable match rather than a large strategy
-game. The battlefield has two clear fronts, a small action set, visible legal
-targets, and simultaneous turns. As the match develops, Cinder observes only
-what has already happened and creates a new, fair opportunity on the map.
+> 中文概览：CINDERFALL 是一款轻量策略对抗游戏。玩家在北路与南路之间选择
+> 本回合的推进方向，通过扩张、固守与进攻保持补给线、争夺 Relay 与 Beacon。
+> 火山世界会根据已经结算的战局带来新的地图机会，但对双方保持公开且公平。
 
-> 中文概览：这是一个围绕北路与南路展开的轻策略对抗游戏。扩张领地、守住补给线、
-> 争夺 Relay，并让 Beacon 保持补给即可得分。火山 Cinder 会根据已结算的局势改变
-> 后续地图机会，但不会替任何一方直接决定胜负。
+## The battlefield
 
-## Play the game
+The board is built to be read at a glance.
 
-Requirements: **Python 3.9+**. Node.js is optional and is only used for local
-simulation. The complete rules game works without an LLM key.
+| Element | Role in the match |
+|---|---|
+| **North / South routes** | The two main fronts. Commit to one for the turn, then reassess next turn. |
+| **Glowing border** | A valid target for the action you currently selected. |
+| **◇ Relay** | A supply junction. Taking the complete pair can cut territory beyond it off from its capital. |
+| **★ Beacon** | The scoring objective. It matters only while your territory can supply it. |
+| **Cinder warning** | An announced world change that both sides can plan around. |
+
+The map is intentionally small: every advance should raise a readable choice.
+Do you build a safer line, contest the enemy’s connection, or push the Beacon
+while the field is changing?
+
+## How to play
+
+1. **Choose a route and an action.** Follow the highlighted tiles to expand
+   from your territory, reinforce a supplied position, or attack an adjacent
+   enemy tile.
+2. **Keep your line connected.** Land linked back to your capital receives
+   Supply. Supply supports your actions and keeps key territory effective.
+3. **Use objectives to create pressure.** A Relay can disrupt an enemy route;
+   a supplied Beacon turns map control into progress toward victory.
+4. **End the turn.** Both sides reveal and resolve their queued orders
+   together. Read the battle report, then choose your next front.
+
+The optional **Combo** action becomes available only when your queued actions
+form a clear follow-through. It is a reward for building a coherent plan, not
+a separate system that must be learned before the first match.
+
+Keyboard controls: `1–4` choose an action, `Enter` ends the turn, and `Esc`
+clears the current queue. The first line above the battle log stays fixed as a
+short suggestion for the current situation.
+
+## A battlefield that responds
+
+Cinderfall is designed around a simple promise: the world can react to play
+without taking the match away from the player. Cinder observes only resolved
+battlefield patterns—such as pressure on a route or a neglected area—and may
+introduce a new resource focus or terrain opportunity for a later turn.
+
+These changes are visible before they take effect. They are there to refresh
+the tactical question, not to award a side a win. This makes the changing map
+part of the strategy: you can prepare for it, ignore it, or use it to change
+the rhythm of a stalemate.
+
+## Run locally
+
+Requirements: **Python 3.9+**. Node.js is optional and is only needed for the
+offline simulation command.
 
 ```bash
 python -m venv .venv
@@ -35,126 +81,37 @@ python server.py
 
 Open <http://127.0.0.1:8000>.
 
-### Optional LLM configuration
+## Optional LLM demo mode
 
-LLM calls enrich the Saltkin's strategic intent, Cinder's event selection, and
-the optional Mock Player tool. They are never required to execute a legal turn:
-the deterministic rules and bot always remain available as fallback.
+The game remains playable without an API key. When configured, an
+OpenAI-compatible model can enrich the optional **Mock LLM Move** tool and the
+world’s adaptive presentation. The core turn rules always remain available.
 
 ```dotenv
 CINDERFALL_API_KEY=your-key
 CINDERFALL_AI_BASE_URL=https://api.siliconflow.cn/v1
 CINDERFALL_AI_MODEL=moonshotai/Kimi-K2.7-Code
-CINDERFALL_AI_TIMEOUT_SECONDS=12
-CINDERFALL_HOST=127.0.0.1
-CINDERFALL_PORT=8000
 ```
 
-The key stays in the local Python service and is never exposed to the browser.
-Do not commit `.env`.
+Keep this information in `.env`; it is used only by the local server and is
+never exposed in the browser.
 
-## First match in one minute
-
-Open **Settings → How to Play** for the short visual guide. The practical loop
-is deliberately simple:
-
-1. **Choose a route.** Select `Claim`, then click a glowing empty tile on North
-   or South. The first route action is your focus for this turn; next turn you
-   can choose either front again.
-2. **Use the three core actions.** Claim grows into empty land, Hold strengthens
-   a supplied friendly tile, and Attack contests an adjacent enemy tile. The
-   fourth button, Combo, is an optional bonus that lights only after linked
-   actions.
-3. **End the turn.** Both sides' queued orders resolve together. The fixed task
-   line above the battle log always states the most useful next move.
-
-Keyboard controls: `1–4` select an action, `Enter` ends the turn, and `Esc`
-clears the current queue.
-
-## Read the battlefield
-
-| Map element | What it means |
-|---|---|
-| **North / South** | The two normal fronts. Neither is a special third route, and you may switch on the next turn. |
-| **Glowing border** | Your selected action is legal on this tile. |
-| **◇ Relay pair** | Taking both squares can sever the enemy territory beyond it from its capital. |
-| **★ Beacon** | Scores only while it is connected to your capital by supplied land. |
-| **Cinder warning** | A visible, upcoming world change. It gives both sides time to react. |
-
-Supply is the core strategic rule: connected land produces resources and can be
-held; cut-off land weakens. A supplied Beacon earns points. Capture and defend
-with one clear combat comparison, while a coordinated attack from two supplied
-tiles is stronger.
-
-Win by earning enough supplied Beacon points, or by holding more land when the
-match limit is reached.
-
-## Cinder: a living but fair battlefield
-
-Cinder is the world, not a hidden referee. It looks at resolved public state—
-territory, supply pressure, route use, and recent combat—and selects from safe
-map opportunities prepared by trusted game code. The result may create a new
-resource focus, shift terrain pressure, or encourage movement on a quieter
-front.
-
-The game enforces these guarantees:
-
-- Current player orders are never sent to the opponent or world model.
-- Capitals and Relay infrastructure are protected.
-- A world change cannot remove every route between both sides or erase a side
-  from the map.
-- Every event is announced before it happens and checked again at execution.
-- A failed or slow model call produces an explicit deterministic fallback,
-  rather than blocking the match indefinitely.
-
-The **Cinder** panel is optional for play. It shows the current world reading,
-pending event, safe candidate context, testing controls, optional Mock Player,
-and the resolved-history player profile.
-
-## Mock Player
-
-`Mock LLM Move` is a development/demo tool. It asks the configured model for a
-high-level Ashfarer plan, then lets the same deterministic legal-order bot turn
-that plan into a visible queue. It never bypasses the rules and has no effect
-on ordinary turns unless you press the button.
-
-## Project layout
+## Project guide
 
 ```text
-ai/prompts/          Versioned Saltkin, Cinder, and Mock Player prompts
-ai/schemas/          Strict model response schemas
-ai_service.py        OpenAI-compatible client and trusted validation
-server.py            Same-origin static files and local API endpoints
-js/engine.js         Deterministic turns, supply, combat, and victory rules
-js/mapgen.js         Symmetric North/South map, Relay pairs, Beacon, opening focus
-js/events.js         Cinder world-event templates
-js/validator.js      Fairness guardrails for world changes
-js/profile.js        Resolved-history player profile
-js/bot.js            Deterministic legal order generator
-js/director.js       Safe candidates, rollouts, and event selection
-js/main.js           UI, guide, turn flow, and fallbacks
-tools/simulate.js    Offline balance and invariant checks
-tests/               Service, security, UI, and rule tests
+ai/                 Prompts and response schemas for optional model features
+js/                 Game rules, map, events, interface, and presentation
+server.py           Local game server and API boundary
+tools/simulate.js   Offline match simulation
+tests/              Automated checks
 ```
 
-## Verify locally
-
-These checks do not call an LLM or consume API credits:
+For local verification:
 
 ```bash
 node tools/simulate.js 10
 python -m unittest discover -s tests -v
 ```
 
-The simulator validates symmetric map generation, North/South route behaviour,
-Relay cut-offs, supply, combat coordination, Beacon scoring, Cinder safeguards,
-and deterministic replay. The test suite covers API boundaries, failure
-handling, UI controls, and static assets.
-
-## Privacy and third-party components
-
-Only aggregate, resolved gameplay behaviour is kept in browser `localStorage`;
-there are no accounts, personal identifiers, analytics, or hidden player-order
-collection. See [AI_ARCHITECTURE.md](AI_ARCHITECTURE.md) for the authority
-boundary and [THIRD_PARTY.md](THIRD_PARTY.md) for model, gateway, and license
-disclosure.
+See [AI_ARCHITECTURE.md](AI_ARCHITECTURE.md) and
+[THIRD_PARTY.md](THIRD_PARTY.md) for implementation and third-party details.

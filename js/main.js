@@ -48,7 +48,7 @@
       'chronicle.note': 'Every season the mountain acts, and every season it says why. Predictions are scored against what actually happened.',
       'cinder.note': '',
       'cinder.runtime': 'AI RUNTIME', 'cinder.doctrine': 'SALTKIN DOCTRINE',
-      'cinder.profile': 'PLAYER PROFILE · RESOLVED HISTORY ONLY', 'cinder.reading': 'CURRENT READING',
+      'cinder.profile': 'PLAYER PROFILE · RESOLVED HISTORY ONLY',
       'cinder.evidence': 'DECISION EVIDENCE', 'cinder.candidates': 'COUNTERFACTUAL CANDIDATES · SHADOW BASELINE',
       'cinder.pending': 'PENDING EVENT', 'cinder.override': 'OVERRIDE', 'cinder.controls': 'CONTROLS',
       'cinder.pause': 'pause the director', 'cinder.turtle': 'force stalemate (both sides turtle)',
@@ -69,30 +69,32 @@
       'intro.skip': 'SKIP', 'intro.back': 'BACK',
       'intro.hero.kicker': 'THE ASH RING · SEASON 1',
       'intro.hero.line': 'A world that refuses to sit still.',
-      'intro.hero.sub1': 'Take land, cut a Relay, then keep the Beacon supplied.',
-      'intro.hero.sub2': 'Cinder reads the battle and reshapes the next opportunity fairly.',
-      'intro.hero.you': '· you', 'intro.hero.rival': '· the rival', 'intro.hero.world': '· the world itself',
-      'intro.map.kicker': '1 / 3 · READ THE FIELD',
-      'intro.map.title': 'Two fronts. One clear objective.',
-      'intro.map.north': 'NORTH ROUTE', 'intro.map.south': 'SOUTH ROUTE', 'intro.map.relay': 'RELAY PAIR', 'intro.map.beacon': '★ BEACON',
-      'intro.map.caption': 'Choose a front → contest its Relay → keep the Beacon supplied.',
-      'intro.map.step1.title': 'Choose a front.', 'intro.map.step1.body': 'North and South use the same rules. The opening flame marks a shared early Supply bonus.',
-      'intro.map.step2.title': 'Race for the Relay.', 'intro.map.step2.body': 'Taking both Relay squares can cut that enemy front off from Supply.',
-      'intro.map.step3.title': 'Hold the Beacon.', 'intro.map.step3.body': 'A Beacon only scores while it stays connected to your capital.',
-      'intro.economy.kicker': '2 / 3 · PLAN A TURN', 'intro.economy.title': 'Every turn has Supply and Moves.',
+      'intro.hero.sub1': 'Claim ground, break a supply line, and hold the Beacon.',
+      'intro.hero.sub2': 'Cinder answers the resolved battle with fair, visible shifts in the field.',
+      'intro.hero.you': '· you', 'intro.hero.rival': '· rival', 'intro.hero.world': '· Cinder',
+      'intro.map.kicker': '1 / 2 · READ THE FIELD',
+      'intro.map.title': 'Read the field. Choose your path.',
+      'intro.map.north': 'NORTH →', 'intro.map.south': 'SOUTH →', 'intro.map.relay': '② RELAY', 'intro.map.beacon': '③ BEACON',
+      'intro.map.capitalYou': '① YOU', 'intro.map.capitalRival': 'RIVAL',
+      'intro.map.flowStart': '① leave your capital', 'intro.map.flowRelay': '② claim a Relay pair', 'intro.map.flowBeacon': '③ keep Beacon supplied',
+      'intro.map.keyCapital': 'gold / red frame = capital', 'intro.map.keyRelay': 'gold double tile = Relay', 'intro.map.keyBeacon': 'orange flame = Beacon',
+      'intro.map.attributes': 'Top-left pips show Height: each point adds 1 Defence. Green glow shows Fertility: it provides Supply while connected to your capital.',
+      'intro.map.caption': 'Build a path → contest a Relay → hold the Beacon.',
+      'intro.map.step1.title': 'The field has two main routes.', 'intro.map.step1.body': 'Both capitals connect to North and South. The central caldera does not create a third route.',
+      'intro.map.step2.title': 'Relay disrupts; Beacon scores.', 'intro.map.step2.body': 'Capture both tiles in a Relay pair to cut supply beyond it. A Beacon scores only while it remains supplied.',
+      'intro.map.step3.title': 'Commit, then adapt.', 'intro.map.step3.body': 'Open a continuous path on one route before contesting an objective. You may switch routes next turn.',
+      'intro.economy.kicker': '2 / 2 · PLAY A TURN', 'intro.economy.title': 'Issue orders. Resolve together.',
       'intro.economy.income': 'SUPPLIED FERTILITY', 'intro.economy.incomeSub': 'to spend',
       'intro.economy.claim': 'CLAIM', 'intro.economy.attack': 'ATTACK', 'intro.economy.hold': 'HOLD',
       'intro.economy.unspent': '2 unspent', 'intro.economy.reserve': '2 RESERVE',
       'intro.economy.caption': 'Moves limit orders; Supply pays their cost.',
-      'intro.economy.visualTitle': 'A TURN IN THREE CLICKS',
-      'intro.economy.visual1.title': 'Choose an action', 'intro.economy.visual1.body': 'Claim 3 · Hold 2 · Attack 1',
-      'intro.economy.visual2.title': 'Click a glowing tile', 'intro.economy.visual2.body': 'Glow means this action is legal.',
-      'intro.economy.visual3.title': 'End the turn', 'intro.economy.visual3.body': 'Both sides resolve at the same time.',
-      'intro.economy.lead': 'You only need to read two numbers: Moves limit how many orders you queue; Supply pays their cost.',
+      'intro.economy.visual1.title': 'Choose a command', 'intro.economy.visual1.body': 'Claim 3 · Hold 2 · Attack 1',
+      'intro.economy.visual2.title': 'Select a valid tile', 'intro.economy.visual2.body': 'A glow marks a legal target.',
+      'intro.economy.visual3.title': 'Commit the turn', 'intro.economy.visual3.body': 'Both sides resolve together.',
       'intro.economy.claimHint': 'take adjacent empty land', 'intro.economy.holdHint': '+1 strength on supplied land', 'intro.economy.attackHint': 'attack adjacent enemy land',
-      'intro.economy.step1.title': 'Follow the visible prompts.', 'intro.economy.step1.body': 'If a tile glows, your selected action can be used there. If a button is grey, its requirement is not met yet.',
-      'intro.economy.step2.title': 'Stay on one route this turn.', 'intro.economy.step2.body': 'Your first route action selects North or South. Next turn you can choose either route again.',
-      'intro.economy.step3.title': 'Everything else is optional.', 'intro.economy.step3.body': 'Unused Supply becomes Reserve. Combo only appears after linked orders; you can safely ignore it at first.',
+      'intro.economy.step1.title': 'Moves · order capacity', 'intro.economy.step1.body': 'Each queued command spends one Move. At 0, no further commands can be issued this turn.',
+      'intro.economy.step2.title': 'Supply · spending capacity', 'intro.economy.step2.body': 'Supply pays the printed cost. If it is insufficient, that command is unavailable; unused income becomes Reserve.',
+      'intro.economy.step3.title': 'Resolve · simultaneous outcome', 'intro.economy.step3.body': 'Both queues reveal together, so neither side has first-mover advantage. Then scores and supply update.',
       'intro.effort.kicker': '3 / 5 · CHOOSE A FRONT', 'intro.effort.title': 'Focus one front this turn, then choose again.',
       'intro.effort.now': 'THIS TURN: NORTH', 'intro.effort.next': 'CHOOSE AGAIN NEXT TURN', 'intro.effort.cap': 'CAP', 'intro.effort.relay': 'RELAY',
       'intro.effort.combo': 'COMBO LIGHTS UP', 'intro.effort.comboSub': 'linked orders can buy a stronger follow-through',
@@ -134,7 +136,7 @@
       'chronicle.note': '每个赛季，Cinder 都会行动并说明原因；它的预测会与实际结果进行核验。',
       'cinder.note': '',
       'cinder.runtime': 'AI 运行状态', 'cinder.doctrine': '盐潮军策略（模型原始输出）',
-      'cinder.profile': '玩家画像 · 仅使用已结算历史', 'cinder.reading': '当前战局摘要',
+      'cinder.profile': '玩家画像 · 仅使用已结算历史',
       'cinder.evidence': '决策依据', 'cinder.candidates': '反事实候选 · 对照基线',
       'cinder.pending': '待触发事件', 'cinder.override': '人工覆盖', 'cinder.controls': '调试控制',
       'cinder.pause': '暂停 Director', 'cinder.turtle': '强制僵持（双方均采取龟缩策略）',
@@ -155,30 +157,32 @@
       'intro.skip': '跳过', 'intro.back': '返回',
       'intro.hero.kicker': '灰烬之环 · 第一季',
       'intro.hero.line': '一座永不静止的火山群岛。',
-      'intro.hero.sub1': '扩张领地，夺取 Relay，并保持 Beacon 的补给。',
-      'intro.hero.sub2': 'Cinder 会读取已发生的战局，公平地重组下一次机会。',
-      'intro.hero.you': '· 你', 'intro.hero.rival': '· 对手', 'intro.hero.world': '· 世界本身',
-      'intro.map.kicker': '1 / 3 · 认识战场',
-      'intro.map.title': '两条战线，一个清晰目标。',
-      'intro.map.north': '北路', 'intro.map.south': '南路', 'intro.map.relay': 'Relay 双格点', 'intro.map.beacon': '★ Beacon',
-      'intro.map.caption': '选择一路 → 争夺 Relay → 保持 Beacon 补给。',
-      'intro.map.step1.title': '先选一条战线。', 'intro.map.step1.body': '北路与南路规则相同；开局火焰标示双方共享的短期 Supply 加成路线。',
-      'intro.map.step2.title': '争夺 Relay。', 'intro.map.step2.body': '拿下同一组的两格 Relay，可切断对方这一路的补给。',
-      'intro.map.step3.title': '守住 Beacon。', 'intro.map.step3.body': 'Beacon 只有与首都保持连通时才能得分。',
-      'intro.economy.kicker': '2 / 3 · 规划本回合', 'intro.economy.title': '每回合都受 Supply 与行动次数限制。',
+      'intro.hero.sub1': '扩张领地、切断补给线，并守住 Beacon。',
+      'intro.hero.sub2': 'Cinder 会根据已结算的战局，为双方带来公平且可预期的战场变化。',
+      'intro.hero.you': '· 我方', 'intro.hero.rival': '· 对手', 'intro.hero.world': '· Cinder',
+      'intro.map.kicker': '1 / 2 · 认识战场',
+      'intro.map.title': '读懂战场，再决定路线。',
+      'intro.map.north': '北路 →', 'intro.map.south': '南路 →', 'intro.map.relay': '② Relay', 'intro.map.beacon': '③ Beacon',
+      'intro.map.capitalYou': '① 我方', 'intro.map.capitalRival': '对手',
+      'intro.map.flowStart': '① 从首都出发', 'intro.map.flowRelay': '② 占领一组 Relay', 'intro.map.flowBeacon': '③ 保持 Beacon 补给',
+      'intro.map.keyCapital': '金 / 红边框 = 首都', 'intro.map.keyRelay': '金色双格 = Relay', 'intro.map.keyBeacon': '橙色火焰 = Beacon',
+      'intro.map.attributes': '地块左上角刻度为高度：每点提高 1 点防守；绿色光晕为肥沃度：与首都连通时提供 Supply。',
+      'intro.map.caption': '建立路径 → 争夺 Relay → 守住 Beacon。',
+      'intro.map.step1.title': '战场由两条主路构成。', 'intro.map.step1.body': '双方首都都可通往北路和南路；中央区域不构成独立路线。',
+      'intro.map.step2.title': 'Relay 断补给，Beacon 得分。', 'intro.map.step2.body': '占领同组两格 Relay，即可切断其后方补给；Beacon 只有保持补给连通时才会得分。',
+      'intro.map.step3.title': '先形成推进线，再争夺目标。', 'intro.map.step3.body': '一回合内专注一路，优先建立连续领地；下回合可根据局势切换路线。',
+      'intro.economy.kicker': '2 / 2 · 进行一回合', 'intro.economy.title': '下达指令，同步结算。',
       'intro.economy.income': '已补给肥沃度', 'intro.economy.incomeSub': '可供花费',
       'intro.economy.claim': '扩张', 'intro.economy.attack': '进攻', 'intro.economy.hold': '固守',
       'intro.economy.unspent': '剩余 2 点', 'intro.economy.reserve': '储备 2 点',
       'intro.economy.caption': '行动次数限制指令数；Supply 支付它们的消耗。',
-      'intro.economy.visualTitle': '一回合，只需三步',
-      'intro.economy.visual1.title': '选择操作', 'intro.economy.visual1.body': '扩张 3 · 固守 2 · 进攻 1',
-      'intro.economy.visual2.title': '点击发光地块', 'intro.economy.visual2.body': '发光即表示该操作可用。',
-      'intro.economy.visual3.title': '结束回合', 'intro.economy.visual3.body': '双方会同时结算。',
-      'intro.economy.lead': '只需看两个数字：行动次数决定可排的指令数，Supply 支付指令消耗。',
+      'intro.economy.visual1.title': '选择指令', 'intro.economy.visual1.body': '扩张 3 · 固守 2 · 进攻 1',
+      'intro.economy.visual2.title': '选择有效目标', 'intro.economy.visual2.body': '发光边框表示该地块可执行当前指令。',
+      'intro.economy.visual3.title': '提交回合', 'intro.economy.visual3.body': '双方指令会同时结算。',
       'intro.economy.claimHint': '占领相邻的空地', 'intro.economy.holdHint': '强化一格有补给的领地', 'intro.economy.attackHint': '进攻相邻的敌方领地',
-      'intro.economy.step1.title': '跟随可见提示。', 'intro.economy.step1.body': '发光地块表示当前操作可用；按钮置灰则说明条件暂未满足。',
-      'intro.economy.step2.title': '本回合专注一路。', 'intro.economy.step2.body': '第一条战线指令选定北路或南路；下回合可以重新选择任一路。',
-      'intro.economy.step3.title': '其余内容都是可选项。', 'intro.economy.step3.body': '未用 Supply 会转为 Reserve；连携只在关联指令后出现，第一次游玩可以忽略。',
+      'intro.economy.step1.title': '行动次数 · 指令容量', 'intro.economy.step1.body': '每排入一条指令都会消耗 1 次行动；行动次数归零后，本回合不能再下达指令。',
+      'intro.economy.step2.title': 'Supply · 资源容量', 'intro.economy.step2.body': 'Supply 支付按钮显示的消耗。Supply 不足时指令不可用；未花完的收入会转为 Reserve。',
+      'intro.economy.step3.title': '同步结算 · 公平结果', 'intro.economy.step3.body': '双方队列会同时揭示与结算，没有先手优势；随后更新得分与补给状态。',
       'intro.effort.kicker': '3 / 5 · 选择战线', 'intro.effort.title': '本回合专注一路，下回合重新选择。',
       'intro.effort.now': '本回合：北路', 'intro.effort.next': '下回合可重新选择', 'intro.effort.cap': '首都', 'intro.effort.relay': 'Relay',
       'intro.effort.combo': '连携已解锁', 'intro.effort.comboSub': '关联指令可购买更强的后续效果',
@@ -303,18 +307,6 @@
       CREATE_CONTESTED_PRIZE: '创造争夺目标', PRESERVE_VARIETY: '保持变化',
       SLOW_RUNAWAY: '抑制滚雪球'
     }[goal] || '平衡战局';
-  }
-
-  function localizedReading(last) {
-    if (!isChinese()) return last ? last.report : 'Cinder is asleep. It wakes at the end of turn 3.';
-    if (!last) return 'Cinder 尚未苏醒；它会在第 3 回合结算后读取公开战局。';
-    var ash = E.landCount(game, 1), salt = E.landCount(game, 2);
-    var lines = ['第 ' + game.turn + ' 回合 · 当前赛季 ' + game.season + '。',
-      'Ashfarers 占有 ' + ash + ' 格领地；Saltkin 占有 ' + salt + ' 格领地。'];
-    lines.push(game.pending
-      ? '下一项候选：' + eventName(game.pending.template) + '，将在第 ' + game.pending.fireTurn + ' 回合末触发。'
-      : '当前没有待触发的世界事件。');
-    return lines.join('\n');
   }
 
   function localizedDecisionEvidence(c) {
@@ -487,10 +479,88 @@
     // but all six pages are available on the first opening as well as from
     // Settings, so no hidden tutorial pages contradict the live rules.
     var allSlides = [].slice.call(el.querySelectorAll('.slide'));
-    var slides = [allSlides[0], allSlides[1], allSlides[2], allSlides[4]];
+    var slides = [allSlides[0], allSlides[1], allSlides[2]];
     function copy(key) { return (UI_COPY[language] && UI_COPY[language][key]) || UI_COPY.en[key] || key; }
 
     CF.intro.init($('introcanvas'));
+
+    // The guide deliberately reuses the live board instead of another abstract
+    // diagram.  It is a frozen, darkened view of this match's actual map with
+    // only the six first-time-player labels layered on top.
+    function paintGuideMap() {
+      var target = $('guide-map-canvas'), source = $('map');
+      if (!target || !source || !game) return;
+      var box = target.getBoundingClientRect();
+      if (box.width < 4 || box.height < 4) return;
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      target.width = Math.max(1, Math.round(box.width * dpr));
+      target.height = Math.max(1, Math.round(box.height * dpr));
+      var ctx = target.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = '#08111d';
+      ctx.fillRect(0, 0, box.width, box.height);
+      var sourceRatio = source.width / Math.max(1, source.height);
+      var targetRatio = box.width / box.height;
+      var dw = targetRatio > sourceRatio ? box.height * sourceRatio : box.width;
+      var dh = targetRatio > sourceRatio ? box.height : box.width / sourceRatio;
+      var dx = (box.width - dw) / 2, dy = (box.height - dh) / 2;
+      ctx.globalAlpha = 0.82;
+      ctx.drawImage(source, dx, dy, dw, dh);
+      ctx.globalAlpha = 1;
+
+      function place(name, tiles, nudgeX, nudgeY) {
+        var node = el.querySelector('[data-guide-label="' + name + '"]');
+        if (!node || !tiles || !tiles.length) return;
+        var x = 0, y = 0;
+        tiles.forEach(function (index) {
+          var r = R.tileRect(index);
+          x += r.x + r.s / 2;
+          y += r.y + r.s / 2;
+        });
+        x /= tiles.length; y /= tiles.length;
+        var targetX = dx + (x / Math.max(1, R.geom.w)) * dw;
+        var targetY = dy + (y / Math.max(1, R.geom.h)) * dh;
+        var labelX = targetX + (nudgeX || 0), labelY = targetY + (nudgeY || 0);
+        node.style.left = labelX + 'px';
+        node.style.top = labelY + 'px';
+        var line = el.querySelector('[data-guide-line="' + name + '"]');
+        if (line) {
+          line.setAttribute('x1', (labelX / box.width * 100));
+          line.setAttribute('y1', (labelY / box.height * 100));
+          line.setAttribute('x2', (targetX / box.width * 100));
+          line.setAttribute('y2', (targetY / box.height * 100));
+        }
+      }
+      function routeGuide(name, row, labelColumn, labelOffsetY) {
+        var from = R.tileRect(row * game.W + 2);
+        var to = R.tileRect(row * game.W + (game.W - 3));
+        var labelTile = R.tileRect(row * game.W + labelColumn);
+        var lower = R.tileRect((row + 1) * game.W + 6);
+        var y = (from.y + from.s / 2 + lower.y + lower.s / 2) / 2;
+        var x1 = from.x + from.s / 2, x2 = to.x + to.s / 2;
+        var px1 = dx + (x1 / Math.max(1, R.geom.w)) * dw;
+        var px2 = dx + (x2 / Math.max(1, R.geom.w)) * dw;
+        var py = dy + (y / Math.max(1, R.geom.h)) * dh;
+        var tag = el.querySelector('[data-guide-label="' + name + '"]');
+        var line = el.querySelector('.guide-route-arrows .' + name);
+        if (tag) {
+          tag.style.left = (dx + ((labelTile.x + labelTile.s / 2) / Math.max(1, R.geom.w)) * dw) + 'px';
+          tag.style.top = (py + labelOffsetY) + 'px';
+        }
+        if (line) line.setAttribute('d', 'M ' + (px1 / box.width * 100) + ' ' + (py / box.height * 100) + 'H ' + (px2 / box.width * 100));
+      }
+      // North and South labels use mirrored positions on their actual route
+      // tiles: north above the right half, south below the left half.
+      routeGuide('north', 2, 10, -22);
+      routeGuide('south', 6, 3, 22);
+      place('capital-a', [game.capitals[1]], -26, -26);
+      place('capital-b', [game.capitals[2]], 26, -26);
+      // The marked Relay is the exact NW two-tile pair. Beacon placement
+      // flips by route so its callout never competes with the route label.
+      place('relay', game.relays.NW || game.relays.NE, 0, -30);
+      var beaconNorth = game.tiles[game.beacon].route === 'north';
+      place('beacon', [game.beacon], beaconNorth ? 30 : -30, beaconNorth ? 30 : -30);
+    }
 
     function go(n) {
       slide = U.clamp(n, 0, slides.length - 1);
@@ -510,10 +580,14 @@
         ? (slide + 1) + ' / ' + slides.length
         : (slide + 1) + ' OF ' + slides.length;
       var labels = language === 'zh'
-        ? ['查看地图 <kbd>→</kbd>', '开始规划 <kbd>→</kbd>', '了解结算 <kbd>→</kbd>', '开始游戏 <kbd>⏎</kbd>']
-        : ['READ THE MAP <kbd>→</kbd>', 'PLAN YOUR TURN <kbd>→</kbd>', 'LEARN RESOLUTION <kbd>→</kbd>', 'START PLAYING <kbd>⏎</kbd>'];
+        ? ['查看地图 <kbd>→</kbd>', '了解操作 <kbd>→</kbd>', '开始游戏 <kbd>⏎</kbd>']
+        : ['READ THE MAP <kbd>→</kbd>', 'HOW TO PLAY <kbd>→</kbd>', 'START PLAYING <kbd>⏎</kbd>'];
       $('intro-next').innerHTML = labels[slide];
       if (CF.intro.setScene) CF.intro.setScene(+slides[slide].dataset.slide);
+      if (slide === 1) {
+        paintGuideMap();
+        window.setTimeout(paintGuideMap, 180);
+      }
     }
 
     function dismiss() {
@@ -1193,12 +1267,12 @@
 
     renderOrders();
     renderSupport();
-    renderOpeningBrief();
     renderRouteGuides();
-    renderPlayerEffort();
     renderMockResult();
     renderMods();
     renderWarning();
+    renderChronicleBrief();
+    renderChronicleForecast();
     renderChronicle();
     renderConsole();
     R.setPreview(orders);
@@ -1323,58 +1397,6 @@
     }
   }
 
-  function renderPlayerEffort() {
-    var el = $('player-effort');
-    var preview = fieldPreview();
-    var current = game.strategy && game.strategy[1];
-    var actionLimit = E.fieldCommands(game);
-    el.classList.toggle('redeploy', preview.redeploys > 0);
-    if (preview.commands >= actionLimit) {
-      var unspent = Math.max(0, E.availableBudget(game, 1) - spent());
-      var banked = Math.max(0, E.income(game, 1) - spent());
-      var combo = E.supportType(game, 1, orders);
-      if (combo && unspent >= E.SUPPORT_COST && !supportRequested) {
-        el.textContent = isChinese()
-          ? '已用 ' + actionLimit + ' 次行动 · 剩余 ' + unspent + ' Supply · 花 2 点使用' +
-            (combo === 'march' ? '扩张连携' : '进攻连携') + '，或存为 Reserve'
-          : actionLimit + ' MOVES USED · ' + unspent + ' SUPPLY LEFT · SPEND 2 ON ' +
-            (combo === 'march' ? 'CLAIM COMBO' : 'ATTACK COMBO') + ' OR BANK IT AS RESERVE';
-      } else {
-        el.textContent = isChinese()
-          ? '已用 ' + actionLimit + ' 次行动 · 剩余 ' + unspent + ' Supply' +
-            (banked ? ' · 下回合存为 ' + banked + ' Reserve' : '')
-          : actionLimit + ' MOVES USED · ' + unspent + ' SUPPLY LEFT' +
-            (banked ? ' · ' + banked + ' WILL BANK AS RESERVE NEXT TURN' : '');
-      }
-      return;
-    }
-    if (!current && !orders.length) {
-      el.textContent = isChinese()
-          ? '先选一路 · 点击发光地块扩张 · 本回合后可重新选择路线'
-        : 'CHOOSE A FRONT · CLAIM A GLOWING TILE · CHOOSE AGAIN NEXT TURN';
-      return;
-    }
-    if (orders.length && preview.commands < actionLimit) {
-      var remainingActions = actionLimit - preview.commands;
-      var remainingSupply = Math.max(0, E.availableBudget(game, 1) - spent());
-      var linked = E.supportType(game, 1, orders);
-      if (linked && remainingSupply >= E.SUPPORT_COST) {
-        el.textContent = isChinese()
-          ? '已排 ' + preview.commands + ' 次行动 · 还可行动 ' + remainingActions + ' 次 · 可固守已有领地，或花 2 Supply 使用连携'
-          : preview.commands + ' MOVES QUEUED · ' + remainingActions + ' LEFT · HOLD EXISTING LAND OR SPEND 2 SUPPLY ON COMBO';
-      } else {
-        el.textContent = isChinese()
-          ? '已排 ' + preview.commands + ' 次行动 · 还可行动 ' + remainingActions + ' 次 · 剩余 ' + remainingSupply + ' Supply'
-          : preview.commands + ' MOVES QUEUED · ' + remainingActions + ' LEFT · ' + remainingSupply + ' SUPPLY REMAINS';
-      }
-      return;
-    }
-    var main = preview.main || current && current.main || game.opening.route;
-    el.textContent = isChinese()
-      ? '本回合专注' + routeName(main) + ' · 可继续扩张、固守或进攻 · 下回合可自由换路'
-      : 'THIS TURN: FOCUS ' + main + ' · EXPAND, HOLD OR ATTACK · CHOOSE ANY FRONT NEXT TURN';
-  }
-
   function renderRouteGuides() {
     var current = game.strategy && game.strategy[1];
     var preview = fieldPreview();
@@ -1396,16 +1418,6 @@
     });
   }
 
-  function renderOpeningBrief() {
-    var el = $('opening-brief');
-    var openingActive = game.opening && game.turn <= game.opening.untilTurn;
-    el.classList.toggle('hidden', !openingActive);
-    if (!openingActive) return;
-    el.textContent = isChinese()
-        ? '开局机会 · ' + routeName(game.opening.route) + '更适合优先推进 · 跟随发光地块即可'
-      : 'OPENING OPPORTUNITY · ' + game.opening.route + ' IS A STRONG FIRST FRONT · FOLLOW THE GLOW';
-  }
-
   function renderMods() {
     var box = $('modlist');
     box.innerHTML = '';
@@ -1423,8 +1435,8 @@
   }
 
   function renderWarning() {
-    var bar = $('warnbar'), p = game.pending;
-    if (!p && game.pressure && game.pressure.staleTurns >= 2) {
+    var bar = $('warnbar');
+    if (game.pressure && game.pressure.staleTurns >= 2) {
       bar.classList.remove('hidden');
       $('warn-title').textContent = isChinese() ? '预警 · 火山压力' : 'WARNING · CINDER PRESSURE';
       $('warn-sub').textContent = game.pressure.staleTurns >= 3
@@ -1433,16 +1445,7 @@
       $('warn-count').textContent = isChinese() ? '压力 ' + game.pressure.staleTurns + ' 回合' : 'pressure ' + game.pressure.staleTurns;
       return;
     }
-    if (!p) { bar.classList.add('hidden'); return; }
-    bar.classList.remove('hidden');
-    $('warn-title').textContent = isChinese()
-      ? '预警 · ' + eventName(p.template) + ' · 强度 ' + 'I'.repeat(p.intensity)
-      : 'WARNING · ' + EV.nameOf(p.template) + ' · INTENSITY ' + 'I'.repeat(p.intensity);
-    $('warn-sub').textContent = localizedWarning(p.template, p.region, p.warning);
-    var away = p.fireTurn - game.turn;
-    $('warn-count').textContent = isChinese()
-      ? (away <= 0 ? '本回合' : away === 1 ? '本回合末' : '还有 ' + away + ' 回合')
-      : (away <= 0 ? 'this turn' : away === 1 ? 'end of this turn' : 'in ' + away + ' turns');
+    bar.classList.add('hidden');
   }
 
   function say(cls, text) {
@@ -1452,8 +1455,8 @@
   function currentTask() {
     if (!orders.length && game.turn <= 2) {
       return isChinese()
-        ? '当前任务：选择北路或南路，点击发光地块完成扩张。'
-        : 'CURRENT TASK: Choose NORTH or SOUTH, then Claim a glowing tile.';
+        ? '当前任务：选择北路或南路，点击发光地块扩张；下回合可重新选择路线。'
+        : 'CURRENT TASK: Choose NORTH or SOUTH, Claim a glowing tile, then choose again next turn.';
     }
     if (orders.length) {
       var focus = fieldPreview().main || game.opening.route;
@@ -1571,6 +1574,34 @@
   }
 
   // ---------------------------------------------------------- chronicle
+  function renderChronicleBrief() {
+    var el = $('chronicle-brief');
+    var openingActive = game.opening && game.turn <= game.opening.untilTurn;
+    el.classList.toggle('hidden', !openingActive);
+    if (!openingActive) return;
+    var route = game.opening.route;
+    $('chronicle-brief-title').textContent = isChinese()
+      ? '开局机会 · ' + routeName(route)
+      : 'OPENING OPPORTUNITY · ' + route;
+    $('chronicle-brief-copy').textContent = isChinese()
+      ? '第 ' + game.opening.untilTurn + ' 回合前，双方在' + routeName(route) + '的已补给地块额外获得 +1 肥沃度。优先沿发光地块扩张，可更快积累 Supply。'
+      : 'Through turn ' + game.opening.untilTurn + ', supplied tiles on ' + route + ' gain +1 Fertility for both sides. Expanding along the glow builds Supply faster.';
+  }
+
+  function renderChronicleForecast() {
+    var el = $('chronicle-forecast'), p = game.pending;
+    el.classList.toggle('hidden', !p);
+    if (!p) return;
+    $('chronicle-forecast-title').textContent = isChinese()
+      ? '待触发事件 · ' + eventName(p.template) + ' · 强度 ' + 'I'.repeat(p.intensity)
+      : 'PENDING EVENT · ' + EV.nameOf(p.template) + ' · INTENSITY ' + 'I'.repeat(p.intensity);
+    $('chronicle-forecast-copy').textContent = localizedWarning(p.template, p.region, p.warning);
+    var away = p.fireTurn - game.turn;
+    $('chronicle-forecast-count').textContent = isChinese()
+      ? (away <= 0 ? '将在本回合结算时触发' : away === 1 ? '将在本回合末触发' : '预计 ' + away + ' 回合后触发')
+      : (away <= 0 ? 'Resolves this turn' : away === 1 ? 'Resolves at end of turn' : 'Expected in ' + away + ' turns');
+  }
+
   function renderChronicle() {
     var el = $('chronicle');
     if (!game.chronicle.length) {
@@ -1612,12 +1643,10 @@
   // ------------------------------------------------------------- console
   function renderConsole() {
     var last = game.chronicle[game.chronicle.length - 1];
-    $('con-report').textContent = localizedReading(last);
     $('con-reason').textContent = localizedDecisionEvidence(last);
 
     var playerProfile = CF.profile.build(game, CF.profile.load());
-    $('con-profile').textContent = JSON.stringify(playerProfile.features, null, 2) +
-      '\n\nEVIDENCE\n' + JSON.stringify(playerProfile.evidence, null, 2);
+    renderPlayerProfile(playerProfile);
     // The rail is a glanceable next-step surface. The full doctrine stays in
     // Cinder Console; show the opponent only once its plan has game evidence.
     var intentEl = $('saltkin-intent');
@@ -1653,13 +1682,6 @@
       $('con-candidates').textContent = candidateLines.join('\n');
     }
 
-    var p = game.pending;
-    $('con-pending').textContent = p
-      ? eventName(p.template) + (isChinese() ? ' · 强度 ' : ' · intensity ') + p.intensity +
-        (p.region ? ' · ' + (isChinese() ? eventRegion(p.region) : EV.regionName(p.region)) : '') +
-        (isChinese() ? ' · 将在第 ' + p.fireTurn + ' 回合末触发' : ' · fires at the end of turn ' + p.fireTurn)
-      : (isChinese() ? '暂无待触发事件 · 对手当前策略：' + lastBotMood : 'none — the rival is playing ' + lastBotMood);
-
     $('con-mock-status').textContent = mockPlayerAI.pending
       ? (isChinese() ? '正在调用 ' : 'calling ') + (aiHealth.model || (isChinese() ? '已配置模型' : 'the configured model')) + '…'
       : mockPlayerAI.source === 'LLM' && mockPlayerAI.doctrine
@@ -1670,25 +1692,55 @@
             (isChinese() ? ' · 仅生成合法机器人指令' : ' · legal bot queue only')
           : (isChinese() ? '就绪 · 尚未生成模拟行动' : 'ready — no mock move queued');
 
-    var mem = $('con-memory'), keys = Object.keys(game.memory);
-    if (!keys.length) { mem.textContent = isChinese() ? '暂无事件历史。' : 'no history yet'; }
-    else {
-      mem.innerHTML = '';
-      keys.sort().forEach(function (k) {
-        var m = game.memory[k];
-        var tot = m.hits + m.misses;
-        var pct = tot ? Math.round(m.hits / tot * 100) : 0;
-        var row = document.createElement('div');
-        row.className = 'mem-row';
-        row.innerHTML = '<span>' + EV.nameOf(k) + '</span>' +
-                        '<span class="mbar"><i style="width:' + pct + '%"></i></span>' +
-                        '<b>' + m.uses + 'x</b>';
-        row.title = isChinese()
-          ? '预测成立 ' + m.hits + ' 次，未成立 ' + m.misses + ' 次'
-          : m.hits + ' predictions right, ' + m.misses + ' wrong';
-        mem.appendChild(row);
-      });
+  }
+
+  function renderPlayerProfile(profile) {
+    var box = $('con-profile');
+    if (!box) return;
+    box.innerHTML = '';
+    var features = profile.features, evidence = profile.evidence;
+    if (!evidence.resolved_turns) {
+      box.textContent = isChinese()
+        ? '完成一回合后，这里会根据已结算的行为形成战术观察。'
+        : 'Resolve one turn to build a tactical reading from settled play.';
+      return;
     }
+    var summary = document.createElement('p');
+    summary.className = 'profile-summary';
+    summary.textContent = isChinese()
+      ? '已基于 ' + evidence.resolved_turns + ' 个已结算回合生成；不会读取当前指令队列。'
+      : 'Built from ' + evidence.resolved_turns + ' resolved turn' + (evidence.resolved_turns === 1 ? '' : 's') + '; the current queue is excluded.';
+    box.appendChild(summary);
+    function routeNameForProfile(route) {
+      if (isChinese()) return route === 'NORTH' ? '偏好北路' : route === 'SOUTH' ? '偏好南路' : '双路均衡';
+      return route === 'NORTH' ? 'North-focused' : route === 'SOUTH' ? 'South-focused' : 'Balanced routes';
+    }
+    function tacticName(tactic) {
+      if (isChinese()) return tactic === 'EXPAND' ? '扩张优先' : tactic === 'FORTIFY' ? '固守优先' : tactic === 'RAID' ? '进攻优先' : '仍在观察';
+      return tactic === 'EXPAND' ? 'Growth-first' : tactic === 'FORTIFY' ? 'Defence-first' : tactic === 'RAID' ? 'Attack-first' : 'Still observing';
+    }
+    function beaconFocus(ratio) {
+      if (isChinese()) return ratio >= 0.35 ? '主动争夺' : ratio >= 0.15 ? '偶尔关注' : '尚未形成偏好';
+      return ratio >= 0.35 ? 'Actively contested' : ratio >= 0.15 ? 'Occasionally contested' : 'No clear focus yet';
+    }
+    function supplyCare(ratio) {
+      if (isChinese()) return ratio >= 0.18 ? '需留意补给' : '补给稳定';
+      return ratio >= 0.18 ? 'Supply needs attention' : 'Supply remains stable';
+    }
+    var cards = isChinese()
+      ? [['路线偏好', routeNameForProfile(features.preferred_arc)], ['当前风格', tacticName(profile.currentTactic)], ['Beacon 关注', beaconFocus(features.beacon_chase)], ['补给管理', supplyCare(features.supply_neglect)]]
+      : [['ROUTE', routeNameForProfile(features.preferred_arc)], ['STYLE', tacticName(profile.currentTactic)], ['BEACON', beaconFocus(features.beacon_chase)], ['SUPPLY', supplyCare(features.supply_neglect)]];
+    var grid = document.createElement('div');
+    grid.className = 'profile-grid';
+    cards.forEach(function (card) {
+      var item = document.createElement('div');
+      item.className = 'profile-card';
+      var label = document.createElement('small');
+      var value = document.createElement('b');
+      label.textContent = card[0]; value.textContent = card[1];
+      item.appendChild(label); item.appendChild(value); grid.appendChild(item);
+    });
+    box.appendChild(grid);
   }
 
   // ================================================================ input
@@ -1768,15 +1820,11 @@
     };
     $('go-again').onclick = function () { if (!interactionLocked()) newGame((Math.random() * 1e9) | 0); };
     $('con-new').onclick = function () { if (!interactionLocked()) newGame((Math.random() * 1e9) | 0); };
-
     $('con-pause').onchange = function () {
       if (interactionLocked()) return;
       paused = this.checked;
       say('world', paused ? 'Director paused by the designer.' : 'Director resumed.');
-      // Release an overdue event before the next player action. If a turn is
-      // already resolving, its scheduled event phase will do the same check.
-      if (!paused && !busy && !game.over && EV.isDue(game.pending, game.turn))
-        fireEvent(game.pending);
+      if (!paused && !busy && !game.over && EV.isDue(game.pending, game.turn)) fireEvent(game.pending);
       renderFeed();
     };
     $('con-turtle').onchange = function () {
@@ -1802,68 +1850,12 @@
       renderFeed();
       refresh();
     };
-    $('con-mock').onclick = requestMockPlayerMove;
-
-    // template picker for the override
-    var sel = $('con-override');
-    EV.all().forEach(function (id) {
-      var o = document.createElement('option');
-      o.value = id; o.textContent = EV.nameOf(id);
-      sel.appendChild(o);
-    });
-
-    $('con-apply').onclick = function () {
-      if (interactionLocked()) return;
-      var ev = {
-        template: sel.value,
-        intensity: +$('con-intensity').value,
-        region: game.pending ? game.pending.region : 'centre',
-        prediction: { metric: 'raids', dir: 'up', mag: 0.3, text: 'Chosen by a human. No prediction on record.' },
-        season: game.pending ? game.pending.season : game.season + 1,
-        fireTurn: game.pending ? game.pending.fireTurn : game.turn,
-        mainTarget: 0
-      };
-      ev.warning = EV.warningFor(ev);
-      var approval = CF.validator.approveOverride(game, ev);
-      if (!approval.ok) {
-        say('world', 'Designer override refused — ' + approval.fails.join('; ') + '.');
-        renderFeed();
-        refresh();
-        return;
-      }
-      ev.reasoning = 'Overridden by the designer.\n\nGuardrails: passed.';
-      ev.report = game.pending ? game.pending.report : '(no report — human override)';
-      ev.mainTarget = approval.mainTarget;
-
-      if (game.pending) {
-        game.pending = ev;
-        var entry = game.chronicle[game.chronicle.length - 1];
-        if (entry && !entry.fired) {
-          entry.template = ev.template; entry.intensity = ev.intensity;
-          entry.region = ev.region; entry.warning = ev.warning; entry.reasoning = ev.reasoning;
-          entry.prediction = ev.prediction; entry.mainTarget = ev.mainTarget;
-        }
-        say('world', 'Designer override: the next event is now ' + EV.nameOf(ev.template) + '.');
-      } else {
-        game.pending = ev;
-        game.chronicle.push({
-          season: ev.season, decidedTurn: game.turn, fireTurn: game.turn,
-          template: ev.template, intensity: ev.intensity, region: ev.region,
-          warning: ev.warning, reasoning: ev.reasoning, report: ev.report,
-          prediction: ev.prediction, predictionResult: 'pending',
-          message: null, fired: false, measured: null, mainTarget: ev.mainTarget
-        });
-        say('world', 'Designer queued ' + EV.nameOf(ev.template) + '.');
-      }
-      renderFeed();
-      refresh();
-    };
-
     $('con-fire').onclick = function () {
       if (interactionLocked()) return;
-      if (!game.pending) { say('world', 'Nothing is queued. Pick a template and press override first.'); renderFeed(); return; }
+      if (!game.pending) { say('world', 'Nothing is queued yet.'); renderFeed(); return; }
       fireEvent(game.pending);
     };
+    $('con-mock').onclick = requestMockPlayerMove;
 
     document.addEventListener('keydown', function (e) {
       var target = e.target;
