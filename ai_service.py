@@ -21,7 +21,12 @@ DEFAULT_TIMEOUT_SECONDS = 15.0
 # Doctrine calls only need seven short fields.  A small completion budget keeps
 # an interactive Mock turn responsive even when the configured model is a
 # code-oriented model with a large default generation allowance.
-MAX_DOCTRINE_TOKENS = 160
+# Cinder only chooses from an already simulated, safe shortlist. Its answer is
+# intentionally compact: a candidate id, short explanation, and prediction.
+# The optional legacy doctrine endpoints remain bounded too, but are no longer
+# used by the game client during a normal match.
+MAX_DIRECTOR_TOKENS = 128
+MAX_DOCTRINE_TOKENS = 96
 
 STANCES = {"ASSAULT", "GROWTH", "FORTRESS"}
 OBJECTIVES = {"BEACON", "LAND", "SUPPLY", "CAPITAL"}
@@ -237,7 +242,9 @@ class AIService:
             "reason": self.init_error or (None if ready else "missing_api_key"),
         }
 
-    def _complete(self, prompt_file: str, schema_file: str, payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    def _complete(
+        self, prompt_file: str, schema_file: str, payload: dict[str, Any], *, max_tokens: int
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         if self.client is None:
             reason = "sdk_unavailable" if self.init_error else "missing_api_key"
             raise AIServiceError(reason, "LLM service is not configured", 503)
@@ -251,7 +258,7 @@ class AIService:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                max_tokens=MAX_DOCTRINE_TOKENS,
+                max_tokens=max_tokens,
                 temperature=0.2,
             )
         except Exception as exc:
@@ -278,7 +285,9 @@ class AIService:
             raise AIServiceError("private_orders_forbidden", "Saltkin requests cannot contain the current order queue", 400)
         if not isinstance(request.get("matchId"), str) or not isinstance(request.get("snapshotTurn"), int):
             raise AIServiceError("invalid_request", "matchId and integer snapshotTurn are required", 400)
-        raw, meta = self._complete("ai/prompts/saltkin.md", "ai/schemas/saltkin.json", request)
+        raw, meta = self._complete(
+            "ai/prompts/saltkin.md", "ai/schemas/saltkin.json", request, max_tokens=MAX_DOCTRINE_TOKENS
+        )
         return {
             "decision": validate_saltkin(raw, request),
             "meta": meta,
@@ -298,7 +307,9 @@ class AIService:
             raise AIServiceError("private_orders_forbidden", "Mock player requests cannot contain an order queue", 400)
         if not isinstance(request.get("matchId"), str) or not isinstance(request.get("snapshotTurn"), int):
             raise AIServiceError("invalid_request", "matchId and integer snapshotTurn are required", 400)
-        raw, meta = self._complete("ai/prompts/mock_player.md", "ai/schemas/saltkin.json", request)
+        raw, meta = self._complete(
+            "ai/prompts/mock_player.md", "ai/schemas/saltkin.json", request, max_tokens=MAX_DOCTRINE_TOKENS
+        )
         return {
             "decision": validate_saltkin(raw, request),
             "meta": meta,
@@ -316,7 +327,9 @@ class AIService:
         candidate_ids = [item.get("id") for item in candidates if isinstance(item, dict)]
         if len(candidate_ids) != len(candidates) or any(not isinstance(item, str) for item in candidate_ids) or len(set(candidate_ids)) != len(candidate_ids):
             raise AIServiceError("invalid_request", "Director candidate IDs must be present and unique", 400)
-        raw, meta = self._complete("ai/prompts/director.md", "ai/schemas/director.json", request)
+        raw, meta = self._complete(
+            "ai/prompts/director.md", "ai/schemas/director.json", request, max_tokens=MAX_DIRECTOR_TOKENS
+        )
         return {
             "decision": validate_director(raw, request),
             "meta": meta,

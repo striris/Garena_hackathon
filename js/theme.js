@@ -48,7 +48,7 @@ CF.theme = (function () {
   };
 
   var PALETTE = {
-    1: '#f8d35b',
+    1: '#ffd15c',
     2: '#ff7159',
     3: '#b893ff',
     beacon: '#ffe487',

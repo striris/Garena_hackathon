@@ -20,6 +20,7 @@ The board is built to be read at a glance.
 | Element | Role in the match |
 |---|---|
 | **North / South routes** | The two main fronts. Commit to one for the turn, then reassess next turn. |
+| **Gold / red territory** | Ashfarer and Saltkin control. A deeper fill and bright edge make each connected line easy to read. |
 | **Glowing border** | A valid target for the action you currently selected. |
 | **◇ Relay** | A supply junction. Taking the complete pair can cut territory beyond it off from its capital. |
 | **★ Beacon** | The scoring objective. It matters only while your territory can supply it. |
@@ -48,6 +49,11 @@ a separate system that must be learned before the first match.
 Keyboard controls: `1–4` choose an action, `Enter` ends the turn, and `Esc`
 clears the current queue. The first line above the battle log stays fixed as a
 short suggestion for the current situation.
+
+For an observation run, use **Auto-select next strategy**. The local field
+bot fills the Ashfarers' current queue with a legal plan, while you retain
+control of ending the turn. Its proposal disappears after that turn resolves;
+the battle report remains available for review.
 
 ## A battlefield that responds
 
@@ -83,14 +89,17 @@ Open <http://127.0.0.1:8000>.
 
 ## Optional LLM demo mode
 
-The game remains playable without an API key. When configured, an
-OpenAI-compatible model can enrich the optional **Mock LLM Move** tool and the
-world’s adaptive presentation. The core turn rules always remain available.
+The game remains playable without an API key. During a normal match, Saltkin
+and the optional simulated player both use local deterministic field bots. The
+Mock button therefore selects the next strategy and fills an immediate legal
+test queue without a network request. An OpenAI-compatible model is reserved
+for Cinder’s periodic world decisions, where it selects from a concise set of
+pre-validated map opportunities.
 
 ```dotenv
 CINDERFALL_API_KEY=your-key
 CINDERFALL_AI_BASE_URL=https://api.siliconflow.cn/v1
-CINDERFALL_AI_MODEL=moonshotai/Kimi-K2.7-Code
+CINDERFALL_AI_MODEL=deepseek-ai/DeepSeek-V3
 ```
 
 Keep this information in `.env`; it is used only by the local server and is

@@ -64,6 +64,13 @@ class StaticAssetTests(unittest.TestCase):
         self.assertIn("REQUEST_TIMEOUT_MS = Math.ceil(serverTimeout) + 1500;", self.ai)
         self.assertIn("CF.ai.configure(health);", self.main)
 
+    def test_only_cinder_uses_live_model_in_normal_play(self):
+        self.assertIn("var SALTKIN_LLM_ENABLED = false;", self.main)
+        self.assertIn("if (!SALTKIN_LLM_ENABLED) return;", self.main)
+        self.assertNotIn("requestDoctrine('match_start');", self.main)
+        self.assertNotIn("CF.ai.mockPlayer(payload)", self.main)
+        self.assertIn("function requestDirector(run)", self.main)
+
     def test_canvas_hit_testing_tracks_visual_size(self):
         self.assertIn("new ResizeObserver(queueResize)", self.render)
         self.assertIn("pointFromClient: pointFromClient", self.render)
@@ -121,7 +128,8 @@ class StaticAssetTests(unittest.TestCase):
 
     def test_director_has_a_short_interaction_budget_and_late_reply_guard(self):
         self.assertIn("code: 'interaction_budget'", self.main)
-        self.assertIn("}, 5000);", self.main)
+        self.assertIn("var DIRECTOR_INTERACTION_BUDGET_MS = 7000;", self.main)
+        self.assertIn("}, DIRECTOR_INTERACTION_BUDGET_MS);", self.main)
         self.assertIn("if (settled || !isCurrentRun(run)) return;", self.main)
 
     def test_map_previews_legal_targets_and_flashes_invalid_clicks(self):

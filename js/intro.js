@@ -219,8 +219,8 @@ CF.intro = (function () {
     cells.forEach(function (c) {
       var X = g.ox + c.x * ts, Y = g.oy + c.y * ts;
       var own = ownerOf(c, push);
-      var col = own === 1 ? '#3ddc84' : '#ff8a3d';
-      var deep = own === 1 ? '#0f6b45' : '#7a3410';
+      var col = own === 1 ? '#ffd15c' : '#ff8a3d';
+      var deep = own === 1 ? '#7d5310' : '#7a3410';
       var base = c.elev >= 3 ? 92 : c.elev === 2 ? 70 : 52;
       var j = (c.seed - .5) * 14;
       ctx.fillStyle = 'rgb(' + Math.round(base + j) + ',' + Math.round(base - 8 + j) + ',' + Math.round(base + 6 + j) + ')';
@@ -252,7 +252,7 @@ CF.intro = (function () {
     ctx.save(); ctx.lineCap = 'round';
     cells.forEach(function (c) {
       var own = owners[c.x + ',' + c.y];
-      var col = own === 1 ? '#3ddc84' : '#ff8a3d';
+      var col = own === 1 ? '#ffd15c' : '#ff8a3d';
       ctx.strokeStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 10; ctx.lineWidth = 2.2;
       var X = g.ox + c.x * ts, Y = g.oy + c.y * ts;
       [[c.x - 1, c.y, X, Y, X, Y + ts], [c.x + 1, c.y, X + ts, Y, X + ts, Y + ts],
@@ -489,7 +489,7 @@ CF.intro = (function () {
         var a = Math.random() * Math.PI * 2, v = 0.4 + Math.random() * 1.6;
         sparks.push({ x: X, y: Y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 0.4,
           life: 1, decay: 0.02 + Math.random() * 0.03, size: 1 + Math.random() * 2,
-          color: Math.random() < .5 ? '#fff2c8' : (Math.random() < .5 ? '#3ddc84' : '#ff8a3d') });
+          color: Math.random() < .5 ? '#fff2c8' : (Math.random() < .5 ? '#ffd15c' : '#ff8a3d') });
       }
     }
     ctx.save(); ctx.globalCompositeOperation = 'lighter';

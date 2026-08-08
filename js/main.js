@@ -5,6 +5,9 @@
    ============================================================ */
 (function () {
   var U = CF.util, E = CF.engine, EV = CF.events, R = CF.render, D = CF.director;
+  // A short completion keeps the event reveal responsive, but real provider
+  // latency for the compact Cinder decision can exceed five seconds.
+  var DIRECTOR_INTERACTION_BUDGET_MS = 7000;
 
   var game = null;
   var orders = [];
@@ -29,6 +32,10 @@
   var currentRun = null;
   var flowTimers = [];
   var language = 'en';
+  // Saltkin uses the deterministic field bot. Live model calls are reserved
+  // for Cinder's occasional world decisions, keeping normal turns quick and
+  // reproducible.
+  var SALTKIN_LLM_ENABLED = false;
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -54,9 +61,9 @@
       'cinder.pause': 'pause the director', 'cinder.turtle': 'force stalemate (both sides turtle)',
       'cinder.fail': 'simulate AI failure (3s → FALLBACK)', 'cinder.fire': 'fire now',
       'cinder.new': 'new ring', 'cinder.clearMemory': 'clear player memory',
-      'cinder.mockTitle': 'MOCK PLAYER · LLM TEST',
-      'cinder.mockNote': 'Ask the configured LLM for an Ashfarer doctrine. The legal bot turns it into a visible, valid queue; it never bypasses rules.',
-      'cinder.mockButton': 'MOCK LLM MOVE', 'cinder.memory': 'TEMPLATE MEMORY',
+      'cinder.mockTitle': 'AUTO PLAY · FIELD BOT',
+      'cinder.mockNote': 'Let the field bot choose the next strategy and fill a visible legal queue. It never bypasses rules or calls the model.',
+      'cinder.mockButton': 'AUTO-SELECT NEXT STRATEGY', 'cinder.memory': 'TEMPLATE MEMORY',
       'orders.available': 'AVAILABLE', 'orders.spent': 'spent', 'orders.unspent': 'unspent',
       'orders.income': 'income', 'orders.reserve': 'reserve', 'orders.moves': 'MOVES',
       'orders.left': 'left', 'orders.queued': 'QUEUED', 'orders.clear': 'clear', 'orders.howToPlay': 'HOW TO PLAY',
@@ -142,9 +149,9 @@
       'cinder.pause': '暂停 Director', 'cinder.turtle': '强制僵持（双方均采取龟缩策略）',
       'cinder.fail': '模拟 AI 失败（3 秒后转为 FALLBACK）', 'cinder.fire': '立即触发',
       'cinder.new': '新开战局', 'cinder.clearMemory': '清除玩家画像',
-      'cinder.mockTitle': '模拟玩家 · LLM 测试',
-      'cinder.mockNote': '让已配置的 LLM 提出 Ashfarers 策略。合法机器人会把它转成可见且有效的指令队列，绝不会绕过规则。',
-      'cinder.mockButton': '调用 LLM 模拟行动', 'cinder.memory': '事件模板记忆',
+      'cinder.mockTitle': '托管模拟 · 规则机器人',
+      'cinder.mockNote': '由规则机器人根据当前局势选择下一步策略，并填入可见的合法指令队列；不会调用模型或绕过规则。',
+      'cinder.mockButton': '自动选择下一步策略', 'cinder.memory': '事件模板记忆',
       'orders.available': '可用 Supply', 'orders.spent': '已花费', 'orders.unspent': '未花费',
       'orders.income': '收入', 'orders.reserve': '储备', 'orders.moves': '行动',
       'orders.left': '剩余', 'orders.queued': '已排队', 'orders.clear': '清空', 'orders.howToPlay': '游戏引导',
@@ -656,7 +663,7 @@
     directorAudit = null;
     saltkinAI = {
       doctrine: null,
-      source: 'FALLBACK',
+      source: 'BOT',
       model: null,
       latencyMs: 0,
       requestId: null,
@@ -689,12 +696,12 @@
       aiHealth = health;
       CF.ai.configure(health);
       refresh();
-      requestDoctrine('match_start');
     });
   }
 
   // ========================================================= Saltkin AI
   function requestDoctrine(reason) {
+    if (!SALTKIN_LLM_ENABLED) return;
     if (!game || game.over || interactionLocked() || orders.length || saltkinAI.pending ||
         saltkinAI.lastRequestTurn === game.turn) return;
     var requestMatch = matchId, snapshotTurn = game.turn;
@@ -764,6 +771,7 @@
   }
 
   function maybeRequestDoctrine() {
+    if (!SALTKIN_LLM_ENABLED) return;
     if (!game || game.over) return;
     var lostLand = saltkinAI.landAtIssue - E.landCount(game, 2);
     var beaconChanged = game.tiles[game.beacon].owner !== saltkinAI.beaconAtIssue;
@@ -781,61 +789,26 @@
       requestDoctrine(lostLand >= 3 ? 'lost_land' : beaconChanged ? 'beacon_changed' : worldChanged ? 'world_event' : 'doctrine_expired');
   }
 
-  // Designer test: LLM picks an Ashfarer doctrine, then the same deterministic
-  // legal-order bot used by Saltkin turns it into an observable player queue.
-  // This keeps a model test meaningful without letting a model cheat.
+  // Designer test: the deterministic field bot drives Ashfarers for one
+  // observable queue. Cinder is the sole live-model feature in normal play.
   function requestMockPlayerMove() {
     if (!game || game.over || interactionLocked()) return;
-    var requestMatch = matchId + '-mock-' + game.turn + '-' + Date.now();
-    var snapshotTurn = game.turn;
-    var payload = CF.profile.requestPayload(game, requestMatch);
-    payload.trigger = 'mock_player_turn';
-    payload.publicState.controlledSide = 'ASHFARERS';
-    payload.publicState.mainEffort = game.strategy && game.strategy[1] || null;
-    mockPlayerAI.pending = true;
-    mockPlayerAI.error = null;
-    beginAIWait('mock-player', 'orders', isChinese()
-      ? '模拟玩家正在选择打法；规则引擎随后会生成合法操作。'
-      : 'Mock Player is choosing a doctrine; rules will generate the legal moves.');
+    var plan = CF.bot.plan(game, 1, false, null);
+    orders = plan.orders.slice();
+    supportRequested = !!plan.orders.support;
+    var summary = orders.map(function (o) {
+      return o.type === 'raid' ? 'Attack ' + E.coord(game, o.from) + '→' + E.coord(game, o.to)
+        : U.cap(o.type) + ' ' + E.coord(game, o.to);
+    }).join(' + ') || (isChinese() ? '当前没有可执行操作。' : 'no legal move');
+    mockPlayerAI = {
+      pending: false, doctrine: null, source: 'BOT', model: null, latencyMs: 0, error: null,
+      orderSummary: summary
+    };
+    say('a', isChinese()
+      ? '托管模拟 · 规则机器人已选择下一步策略：' + summary + '。'
+      : 'AUTO PLAY · FIELD BOT selected the next strategy: ' + summary + '.');
+    renderFeed();
     refresh();
-
-    CF.ai.mockPlayer(payload).then(function (response) {
-      if (!game || matchId !== requestMatch.split('-mock-')[0] || game.turn !== snapshotTurn ||
-          response.matchId !== requestMatch || response.snapshotTurn !== snapshotTurn) return;
-      var plan = CF.bot.plan(game, 1, false, response.decision);
-      orders = plan.orders.slice();
-      supportRequested = !!plan.orders.support;
-      var summary = orders.map(function (o) {
-        return o.type === 'raid' ? 'Attack ' + E.coord(game, o.from) + '→' + E.coord(game, o.to)
-          : U.cap(o.type) + ' ' + E.coord(game, o.to);
-      }).join(' + ') || 'no legal move';
-      mockPlayerAI = {
-        pending: false, doctrine: response.decision, source: response.meta.source || 'LLM',
-        model: response.meta.model || null, latencyMs: response.meta.latencyMs || 0, error: null,
-        orderSummary: summary
-      };
-      say('a', 'MOCK PLAYER · ' + response.decision.stance + ' / ' + response.decision.objective +
-        ' — ' + response.decision.intent + ' Queued: ' + summary + '.');
-      endAIWait('mock-player');
-      renderFeed();
-      refresh();
-    }).catch(function (err) {
-      if (!game || game.turn !== snapshotTurn) return;
-      var fallback = CF.bot.plan(game, 1, false, null);
-      orders = fallback.orders.slice();
-      supportRequested = !!fallback.orders.support;
-      mockPlayerAI = {
-        pending: false, doctrine: null, source: 'FALLBACK', model: null, latencyMs: 0,
-        error: (err && err.code) || 'request_failed',
-        orderSummary: fallback.orders.length ? (isChinese() ? '已生成可执行的默认操作队列。' : 'A legal default order queue was generated.') : (isChinese() ? '当前没有可执行操作。' : 'No legal action is available right now.')
-      };
-      say('a', mockPlayerAI.error === 'network_error'
-        ? 'MOCK PLAYER could not reach the local AI service. A deterministic legal move was queued.'
-        : 'MOCK PLAYER fallback (' + mockPlayerAI.error + ') queued a deterministic legal move.');
-      endAIWait('mock-player');
-      renderFeed();
-      refresh();
-    });
   }
 
   // ============================================================== ordering
@@ -1030,14 +1003,14 @@
     }
 
     // Cloud reasoning improves the showcase, but may never hold a playable
-    // turn hostage. After five seconds, the same pre-validated baseline
+    // turn hostage. After seven seconds, the same pre-validated baseline
     // continues the match; a later cloud response cannot rewrite that turn.
     var settled = false;
     var deadline = setTimeout(function () {
       if (settled || !isCurrentRun(run)) return;
       settled = true;
       directorFallback(run, prepared, { code: 'interaction_budget' });
-    }, 5000);
+    }, DIRECTOR_INTERACTION_BUDGET_MS);
     function clearDeadline() { clearTimeout(deadline); }
     function fallbackOnce(err) {
       if (settled || !isCurrentRun(run)) return;
@@ -1124,6 +1097,10 @@
     if (!game.over) game.over = E.checkVictory(game);
     if (!game.over) game.turn += 1;
 
+    // The auto-play card describes the queue that has just resolved. Keep the
+    // battle-log entry, but do not let an old suggested strategy linger into
+    // the next turn.
+    mockPlayerAI = { pending: false, doctrine: null, source: 'IDLE', model: null, latencyMs: 0, error: null };
     busy = false;
     currentRun = null;
     endAIWait('orders');
@@ -1304,6 +1281,15 @@
       source.textContent = 'LLM' + (mockPlayerAI.latencyMs ? ' · ' + mockPlayerAI.latencyMs + 'ms' : '');
       intent.textContent = (isChinese() ? '策略：' : 'PLAN: ') + mockPlayerAI.doctrine.stance + ' / ' +
         mockPlayerAI.doctrine.objective + ' — ' + mockPlayerAI.doctrine.intent;
+      queued.textContent = (isChinese() ? '已生成操作：' : 'LEGAL QUEUE: ') + (mockPlayerAI.orderSummary || '—');
+      return;
+    }
+    if (mockPlayerAI.source === 'BOT') {
+      title.textContent = isChinese() ? '托管模拟 · 规则机器人' : 'AUTO PLAY · FIELD BOT';
+      source.textContent = isChinese() ? '本地规则策略' : 'LOCAL RULES';
+      intent.textContent = isChinese()
+        ? '已根据当前地图、补给与目标选择下一步策略，并生成一组合法操作。'
+        : 'The next strategy was selected from the current field, supply, and objectives.';
       queued.textContent = (isChinese() ? '已生成操作：' : 'LEGAL QUEUE: ') + (mockPlayerAI.orderSummary || '—');
       return;
     }
@@ -1659,8 +1645,8 @@
           : 'SALTKIN AI · ' + saltkinAI.doctrine.stance + ' / ' + saltkinAI.doctrine.objective;
       } else {
         intentEl.textContent = isChinese()
-          ? '盐潮军 AI · 规则策略 · ' + lastBotMood
-          : 'SALTKIN AI · FALLBACK · ' + lastBotMood;
+          ? '盐潮军 · 规则策略 · ' + lastBotMood
+          : 'SALTKIN · FIELD BOT · ' + lastBotMood;
       }
     }
 
@@ -1687,6 +1673,8 @@
       : mockPlayerAI.source === 'LLM' && mockPlayerAI.doctrine
         ? 'LLM · ' + mockPlayerAI.doctrine.stance + ' / ' + mockPlayerAI.doctrine.objective +
           ' · ' + mockPlayerAI.latencyMs + 'ms'
+        : mockPlayerAI.source === 'BOT'
+          ? (isChinese() ? '规则机器人 · 已生成合法指令' : 'field bot · legal queue generated')
         : mockPlayerAI.source === 'FALLBACK'
           ? (isChinese() ? '降级策略 · ' : 'fallback · ') + mockPlayerAI.error +
             (isChinese() ? ' · 仅生成合法机器人指令' : ' · legal bot queue only')

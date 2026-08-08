@@ -26,7 +26,7 @@ CF.render = (function () {
   }
 
   function sideDeep(o) {
-    return o === 1 ? '#8b6b12' : o === 2 ? '#8c3628' : o === 3 ? '#65488e' : '#4a4334';
+    return o === 1 ? '#7d5310' : o === 2 ? '#8c3628' : o === 3 ? '#65488e' : '#4a4334';
   }
 
   function init(canvas) {
@@ -479,13 +479,13 @@ CF.render = (function () {
     var col = sideColor(tile.owner), deep = sideDeep(tile.owner);
     var insets = ownershipInsets(index, tile.owner);
     var og = ctx.createLinearGradient(r.x, r.y, r.x + r.s, r.y + r.s);
-    og.addColorStop(0, hexA(col, 0.15));
-    og.addColorStop(1, hexA(deep, 0.26));
+    og.addColorStop(0, hexA(col, 0.28));
+    og.addColorStop(1, hexA(deep, 0.42));
     ctx.fillStyle = og;
     ownershipPath(r, insets);
     ctx.fill();
-    ctx.strokeStyle = hexA(col, 0.5);
-    ctx.lineWidth = 1.1;
+    ctx.strokeStyle = hexA(col, 0.82);
+    ctx.lineWidth = 1.5;
     ownershipPath(r, {
       left: insets.left + 0.6,
       right: insets.right + 0.6,

@@ -494,17 +494,19 @@ CF.director = (function () {
       candidates: full,
       payload: {
         report: report,
-        recentMemory: state.memory,
-        saltkinDoctrine: saltkinDoctrine || null,
         shadowBaseline: {
           template: baseline.template,
           intensity: baseline.intensity,
           region: baseline.region
         },
-        candidates: full.map(function (c) {
+        // The model only needs a concise, diverse shortlist. The full event,
+        // target data, and all validation remain local and are restored by id.
+        candidates: full.slice(0, 5).map(function (c) {
           return {
             id: c.id,
-            event: c.event,
+            template: c.event.template,
+            intensity: c.event.intensity,
+            region: c.event.region,
             choiceImpact: c.choiceImpact,
             counterfactual: c.summary
           };
