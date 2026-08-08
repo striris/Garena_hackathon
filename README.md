@@ -50,10 +50,10 @@ Keyboard controls: `1–4` choose an action, `Enter` ends the turn, and `Esc`
 clears the current queue. The first line above the battle log stays fixed as a
 short suggestion for the current situation.
 
-For an observation run, use **Auto-select next strategy**. The local field
-bot fills the Ashfarers' current queue with a legal plan, while you retain
-control of ending the turn. Its proposal disappears after that turn resolves;
-the battle report remains available for review.
+For an observation run, use **Auto-select next strategy**. It prepares a
+legal plan for the current turn while you retain control of ending the turn.
+Its proposal disappears after that turn resolves; the battle report remains
+available for review.
 
 ## A battlefield that responds
 
@@ -87,14 +87,10 @@ python server.py
 
 Open <http://127.0.0.1:8000>.
 
-## Optional LLM demo mode
+## Optional demo connection
 
-The game remains playable without an API key. During a normal match, Saltkin
-and the optional simulated player both use local deterministic field bots. The
-Mock button therefore selects the next strategy and fills an immediate legal
-test queue without a network request. An OpenAI-compatible model is reserved
-for Cinder’s periodic world decisions, where it selects from a concise set of
-pre-validated map opportunities.
+The game is fully playable without configuration. Add a compatible model
+connection only when demonstrating Cinder’s dynamic battlefield events.
 
 ```dotenv
 CINDERFALL_API_KEY=your-key
@@ -108,7 +104,7 @@ never exposed in the browser.
 ## Project guide
 
 ```text
-ai/                 Prompts and response schemas for optional model features
+ai/                 Resources for the optional Cinder demo connection
 js/                 Game rules, map, events, interface, and presentation
 server.py           Local game server and API boundary
 tools/simulate.js   Offline match simulation
@@ -124,3 +120,9 @@ python -m unittest discover -s tests -v
 
 See [AI_ARCHITECTURE.md](AI_ARCHITECTURE.md) and
 [THIRD_PARTY.md](THIRD_PARTY.md) for implementation and third-party details.
+
+## AI in this demo
+
+The demo includes AI-assisted dynamic battlefield events and an optional
+auto-play strategy view for observing a turn. Both are designed to create
+clear, fair choices while the player remains in control of the match.
