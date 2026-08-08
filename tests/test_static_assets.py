@@ -56,7 +56,9 @@ class StaticAssetTests(unittest.TestCase):
     def test_repository_has_no_embedded_key_shape(self):
         secret = re.compile(r"sk-[A-Za-z0-9]{12,}")
         for path in list(ROOT.glob("*.py")) + list((ROOT / "js").glob("*.js")) + list((ROOT / "ai").rglob("*")):
-            if path.is_file():
+            # Prompts, schemas and source are text; local metadata such as a
+            # Finder .DS_Store file must not be decoded as a UTF-8 document.
+            if path.is_file() and path.suffix in {".py", ".js", ".md", ".json"}:
                 self.assertIsNone(secret.search(path.read_text(encoding="utf-8")), str(path))
 
     def test_real_and_simulated_ai_timeouts_are_separate(self):
@@ -77,7 +79,7 @@ class StaticAssetTests(unittest.TestCase):
         self.assertEqual(self.html.count('class="slide'), 6)
         self.assertIn('id="intro-back"', self.html)
         self.assertIn('id="intro-progress"', self.html)
-        self.assertIn('id="btn-tutorial"', self.html)
+        self.assertIn('id="settings-tutorial"', self.html)
         self.assertIn("READ THE RING", self.html)
         self.assertIn("FUND A TURN", self.html)
         self.assertIn("COMMIT THE EFFORT", self.html)
@@ -99,6 +101,11 @@ class StaticAssetTests(unittest.TestCase):
         self.assertIn("if (interactionLocked() || game.over) return;", self.main)
         self.assertIn("position:fixed", self.css)
 
+    def test_director_has_a_short_interaction_budget_and_late_reply_guard(self):
+        self.assertIn("code: 'interaction_budget'", self.main)
+        self.assertIn("}, 5000);", self.main)
+        self.assertIn("if (settled || !isCurrentRun(run)) return;", self.main)
+
     def test_map_previews_legal_targets_and_flashes_invalid_clicks(self):
         self.assertIn("setLegalTargets: setLegalTargets", self.render)
         self.assertIn("function legalTargetsForTool()", self.main)
@@ -106,16 +113,18 @@ class StaticAssetTests(unittest.TestCase):
         self.assertIn('class="order-remove"', self.main)
 
     def test_field_commands_constrain_expansion_and_redeployment(self):
-        self.assertIn("var FIELD_COMMANDS = 2;", self.engine)
+        self.assertIn("var FIELD_COMMANDS = 3;", self.engine)
+        self.assertIn("raid: 1", self.engine)
+        self.assertIn("function fieldCommands(state)", self.engine)
         self.assertIn("type === 'expand' || type === 'raid' || type === 'fortify'", self.engine)
         self.assertIn("commandPreview: commandPreview", self.engine)
         self.assertIn("provisionalExpands", self.engine)
-        self.assertIn("Expand, Raid, and Fortify share two field commands", self.saltkin_prompt)
+        self.assertIn("3, 4, 4, 5, 5, 6 action curve", self.saltkin_prompt)
 
-    def test_income_funds_mobilization_reserve_and_support(self):
-        self.assertIn("var MOBILIZATION_COST = 2;", self.engine)
+    def test_income_funds_reserve_and_support_without_second_move_tax(self):
+        self.assertIn("var MOBILIZATION_COST = 0;", self.engine)
         self.assertIn("var SUPPORT_COST = 2;", self.engine)
-        self.assertIn("var RESERVE_CAP = 6;", self.engine)
+        self.assertIn("var RESERVE_CAP = 8;", self.engine)
         self.assertIn("availableBudget: availableBudget", self.engine)
         self.assertIn("supportType: supportType, planCost: planCost", self.engine)
         self.assertIn('id="btn-support"', self.html)

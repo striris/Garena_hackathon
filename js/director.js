@@ -134,6 +134,13 @@ CF.director = (function () {
     var busyRegion = hottestRegion(state);
     var quietRegion = coldestRegion(state);
     var leaderRegion = sideRegion(state, r.leader || 1);
+    // The first two responses teach the Director's distinctive value: it
+    // creates a new, equally contestable reason to move.  Later, the board
+    // has earned harsher reshaping tools.  This is a priority, not a hidden
+    // rubber-band: both factions receive the same map opportunity.
+    var earlyOpportunity = state.chronicle.length < 2;
+    var firstResponse = state.chronicle.length === 0;
+    var runaway = r.landGap >= 7 || r.incomeGap >= 5;
 
     // Stillness is the mountain's enemy, so quiet turns are the loudest
     // signal in the report — but capped, or nothing else ever gets a turn.
@@ -167,19 +174,20 @@ CF.director = (function () {
 
     // --- reshape the board -----------------------------------------------
     add('eruption',
-      16 + Math.max(0, 5 - r.frontier) * 4 + (r.quiet >= 3 ? 10 : 0) + r.stacking * 1.2,
+      16 + Math.max(0, 5 - r.frontier) * 4 + (r.quiet >= 3 ? 10 : 0) + r.stacking * 1.2 - (earlyOpportunity ? 12 : 0),
       'the two peoples only touch in ' + Math.round(r.frontier) + ' places; the map needs a new prize in the middle of somebody\'s comfort',
       busyRegion, r.quiet >= 4 ? 3 : 2,
       { metric: 'raids', dir: 'up', mag: 0.8, text: 'The wreckage becomes the richest soil on the map. Everyone will want it.' });
 
     add('earthquake',
-      13 + r.landGap * 2 + (r.landA + r.landB > 26 ? 8 : 0) + (r.cutOff ? 4 : 0),
+      13 + r.landGap * 2 + (r.landA + r.landB > 26 ? 8 : 0) + (r.cutOff ? 4 : 0) - (earlyOpportunity ? 8 : 0),
       'territories are long and thin, and a seam through ' + (r.leader ? E.SIDE[r.leader] + ' ground' : 'the middle') + ' would cut supply rather than just land',
       leaderRegion, 2,
       { metric: 'raids', dir: 'up', mag: 0.4, text: 'Cut supply lines force somebody to move.' });
 
     add('new_island',
-      15 + Math.max(0, 10 - r.emptyLand) * 2.6 + (r.quiet >= 2 ? 7 : 0),
+      17 + Math.max(0, 12 - r.emptyLand) * 2.8 + (r.quiet >= 2 ? 7 : 0) +
+        (earlyOpportunity ? 22 : 0) + (firstResponse ? 18 : 0) + (runaway ? 10 : 0),
       'only ' + r.emptyLand + ' squares are unclaimed; without free land there is nothing to race for',
       'centre', 2,
       { metric: 'raids', dir: 'up', mag: 0.4, text: 'Fresh land between them should restart the race.' });
@@ -191,9 +199,12 @@ CF.director = (function () {
       { metric: 'raids', dir: 'up', mag: 0.3, text: 'Losing low ground should push both sides upward into each other.' });
 
     add('bloom',
-      9 + (r.emptyLand > 6 ? 6 : 0) + (r.quiet >= 3 ? 5 : 0),
+      13 + (r.emptyLand > 6 ? 8 : 0) + (r.quiet >= 3 ? 7 : 0) +
+        (earlyOpportunity ? 24 : 0) + (runaway ? 12 : 0),
       'there is a quiet corner nobody has any reason to walk into',
-      quietRegion, 2,
+      // A central Bloom is legible as a shared invitation, rather than a
+      // private buff hidden in whichever corner happened to be quiet.
+      'centre', 2,
       { metric: 'raids', dir: 'up', mag: 0.3, text: 'A rich quiet corner should draw somebody out of position.' });
 
     add('settlers',

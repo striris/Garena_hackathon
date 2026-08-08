@@ -60,15 +60,6 @@ CF.mapgen = (function () {
       mark(tiles, 12, y, y < 5 ? 'north' : 'south');
     }
 
-    // The two permanent cross-caldera bridges. Each is two tiles wide and the
-    // eastern bridge is the exact rotational twin of the western bridge.
-    [[3, 4, 'west'], [9, 10, 'east']].forEach(function (spec) {
-      for (var bx = spec[0]; bx <= spec[1]; bx++) {
-        mark(tiles, bx, 4, 'cross', spec[2]);
-        mark(tiles, bx, 5, 'cross', spec[2]);
-      }
-    });
-
     // Procedural fringe creates an island silhouette without changing the
     // ladder's connectivity. Only the western half decides; twins are copied.
     for (var fx = 2; fx <= 6; fx++) {
@@ -95,6 +86,15 @@ CF.mapgen = (function () {
         tiles[pi].pressureReserved = 1;
       }
     }
+
+    // The two permanent cross-caldera bridges. Each is two tiles wide and the
+    // eastern bridge is the exact rotational twin of the western bridge.
+    [[3, 4, 'west'], [9, 10, 'east']].forEach(function (spec) {
+      for (var bx = spec[0]; bx <= spec[1]; bx++) {
+        mark(tiles, bx, 4, 'cross', spec[2]);
+        mark(tiles, bx, 5, 'cross', spec[2]);
+      }
+    });
 
     // Terrain value is mirrored exactly. Caldera-facing ground is fertile;
     // seaward ground is higher, preserving the original risk/reward tension.

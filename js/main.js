@@ -21,27 +21,260 @@
   var directorAudit = null;
   var aiHealth = { ready: false, source: 'FALLBACK', reason: 'checking' };
   var saltkinAI = null;
+  var mockPlayerAI = { pending: false, doctrine: null, source: 'IDLE', model: null, latencyMs: 0, error: null };
   var aiWaits = {};
   var thinkingTimer = 0;
   var thinkingFocus = null;
   var flowSerial = 0;
   var currentRun = null;
   var flowTimers = [];
+  var language = 'en';
 
   var $ = function (id) { return document.getElementById(id); };
+
+  // This intentionally covers stable, player-facing controls. Match reports
+  // and model responses keep their original language so a translation never
+  // masquerades as what the AI actually said.
+  var UI_COPY = {
+    en: {
+      'brand.tagline': 'a world that refuses to sit still',
+      'hud.turns': '/ 25 turns', 'hud.season': 'SEASON', 'hud.land': 'land',
+      'settings.button': 'SETTINGS', 'settings.title': 'GAME SETTINGS',
+  'settings.guide': 'HOW TO PLAY',
+  'settings.guideCopy': 'Open the short visual guide at any time.',
+      'settings.language': 'LANGUAGE',
+      'settings.languageCopy': 'Changes the core game interface. AI and match records retain their original language.',
+      'tabs.orders': 'ORDERS', 'tabs.chronicle': 'CHRONICLE',
+      'chronicle.note': 'Every season the mountain acts, and every season it says why. Predictions are scored against what actually happened.',
+      'cinder.note': 'Designer audit console. Two goal-limited AIs propose — deterministic code approves — a human can override safely.',
+      'cinder.runtime': 'AI RUNTIME', 'cinder.doctrine': 'SALTKIN DOCTRINE',
+      'cinder.profile': 'PLAYER PROFILE · RESOLVED HISTORY ONLY', 'cinder.reading': 'CURRENT READING',
+      'cinder.evidence': 'DECISION EVIDENCE', 'cinder.candidates': 'COUNTERFACTUAL CANDIDATES · SHADOW BASELINE',
+      'cinder.pending': 'PENDING EVENT', 'cinder.override': 'OVERRIDE', 'cinder.controls': 'CONTROLS',
+      'cinder.pause': 'pause the director', 'cinder.turtle': 'force stalemate (both sides turtle)',
+      'cinder.fail': 'simulate AI failure (3s → FALLBACK)', 'cinder.fire': 'fire now',
+      'cinder.new': 'new ring', 'cinder.clearMemory': 'clear player memory',
+      'cinder.mockTitle': 'MOCK PLAYER · LLM TEST',
+      'cinder.mockNote': 'Ask the configured LLM for an Ashfarer doctrine. The legal bot turns it into a visible, valid queue; it never bypasses rules.',
+      'cinder.mockButton': 'MOCK LLM MOVE', 'cinder.memory': 'TEMPLATE MEMORY',
+      'orders.available': 'AVAILABLE', 'orders.spent': 'spent', 'orders.unspent': 'unspent',
+      'orders.income': 'income', 'orders.reserve': 'reserve', 'orders.moves': 'MOVES',
+      'orders.left': 'left', 'orders.queued': 'QUEUED', 'orders.clear': 'clear', 'orders.howToPlay': 'HOW TO PLAY',
+      'tool.claim': 'CLAIM', 'tool.claimHint': 'take an empty tile beside you',
+      'tool.hold': 'HOLD', 'tool.holdHint': 'make one supplied tile stronger',
+      'tool.attack': 'ATTACK', 'tool.attackHint': 'take an enemy tile beside you',
+      'tool.combo': 'COMBO', 'tool.comboHint': 'unlock with two linked actions',
+      'map.legal': 'glow = can act', 'map.relay': 'Relay = cut supply', 'map.beacon': 'Beacon = score',
+      'intro.skip': 'SKIP', 'intro.back': 'BACK',
+      'intro.hero.kicker': 'GARENA AI BUILD CHALLENGE · 2026',
+      'intro.hero.line': 'A world that refuses to sit still.',
+      'intro.hero.sub1': 'Take land, cut a Relay, then keep the Beacon supplied.',
+      'intro.hero.sub2': 'Cinder reads the battle and reshapes the next opportunity fairly.',
+      'intro.hero.you': '· you', 'intro.hero.rival': '· the rival', 'intro.hero.world': '· the world itself',
+      'intro.map.kicker': '1 / 3 · READ THE RING',
+      'intro.map.title': 'Two fronts. Two cross-bridges. One enemy rear.',
+      'intro.map.north': 'NORTH · HIGH / SHORT', 'intro.map.south': 'SOUTH · FERTILE / LONG', 'intro.map.relay': 'RELAY',
+      'intro.map.caption': 'Break NORTH → cross at the eastern bridge → enter the SOUTH rear.',
+      'intro.map.step1.title': 'Choose a front.', 'intro.map.step1.body': 'The high route is shorter; the fertile route pays more income.',
+      'intro.map.step2.title': 'Use bridges to flank.', 'intro.map.step2.body': "A cross-bridge is not a third capital route. It lets a breakthrough reach the other front's rear.",
+      'intro.map.step3.title': 'Take the Relay.', 'intro.map.step3.body': 'Each bridge lands on a two-tile Supply Relay. It is a tactical objective, not an income tile.',
+      'intro.map.step4.title': 'Watch the Beacon.', 'intro.map.step4.body': 'Both capitals begin equally far from its opening route.',
+      'intro.ai.kicker': '3 / 3 · CINDER ADAPTS', 'intro.ai.title': 'The AI Director gives both sides a fair new decision.',
+      'intro.ai.queue': 'QUEUE', 'intro.ai.queueSub': '1 / 2 / 3 + map', 'intro.ai.saltkinSub': 'secret orders',
+      'intro.ai.resolve': 'RESOLVE', 'intro.ai.resolveSub': 'simultaneous', 'intro.ai.turn2': 'TURN 2',
+      'intro.ai.warning': '⚠ WARNING · NORTH COAST', 'intro.ai.turn3': 'TURN 3', 'intro.ai.acts': 'CINDER ACTS',
+      'intro.ai.victory': '10 SUPPLIED BEACON POINTS', 'intro.ai.victorySub': 'or most land after 25 resolved turns',
+      'intro.ai.step1.title': 'Play first; the rival cannot see your queued moves.', 'intro.ai.step1.body': 'When you end the turn, both sides resolve together.',
+      'intro.ai.step2.title': 'Every third turn, Director reads the public battle.', 'intro.ai.step2.body': 'It compares safe map changes, explains why it chose one, then warns before it acts.',
+      'intro.ai.step3.title': 'It adapts, never rigs the match.', 'intro.ai.step3.body': 'Capitals and Relays stay protected; the same opportunity is available to both sides.',
+      'intro.ai.claim': 'Claim', 'intro.ai.hold': 'Hold', 'intro.ai.attack': 'Attack', 'intro.ai.end': 'End turn', 'intro.ai.clear': 'Clear queue'
+    },
+    zh: {
+      'brand.tagline': '一座永不静止的火山群岛',
+      'hud.turns': '/ 25 回合', 'hud.season': '季节', 'hud.land': '领地',
+      'settings.button': '设置', 'settings.title': '游戏设置',
+  'settings.guide': '玩法说明',
+  'settings.guideCopy': '随时查看简短的图文玩法说明。',
+      'settings.language': '界面语言',
+      'settings.languageCopy': '切换核心操作界面。AI 输出与对战记录保留其原始语言。',
+      'tabs.orders': '指令', 'tabs.chronicle': '战报',
+      'chronicle.note': '每个赛季，Cinder 都会行动并说明原因；它的预测会与实际结果进行核验。',
+      'cinder.note': '设计审计台：受目标限制的 AI 提出方案，确定性规则负责审批；人工可安全介入。',
+      'cinder.runtime': 'AI 运行状态', 'cinder.doctrine': '盐潮军策略（模型原始输出）',
+      'cinder.profile': '玩家画像 · 仅使用已结算历史', 'cinder.reading': '当前战局摘要',
+      'cinder.evidence': '决策依据', 'cinder.candidates': '反事实候选 · 对照基线',
+      'cinder.pending': '待触发事件', 'cinder.override': '人工覆盖', 'cinder.controls': '调试控制',
+      'cinder.pause': '暂停 Director', 'cinder.turtle': '强制僵持（双方均采取龟缩策略）',
+      'cinder.fail': '模拟 AI 失败（3 秒后转为 FALLBACK）', 'cinder.fire': '立即触发',
+      'cinder.new': '新开战局', 'cinder.clearMemory': '清除玩家画像',
+      'cinder.mockTitle': '模拟玩家 · LLM 测试',
+      'cinder.mockNote': '让已配置的 LLM 提出 Ashfarers 策略。合法机器人会把它转成可见且有效的指令队列，绝不会绕过规则。',
+      'cinder.mockButton': '调用 LLM 模拟行动', 'cinder.memory': '事件模板记忆',
+      'orders.available': '可用 Supply', 'orders.spent': '已花费', 'orders.unspent': '未花费',
+      'orders.income': '收入', 'orders.reserve': '储备', 'orders.moves': '行动',
+      'orders.left': '剩余', 'orders.queued': '已排队', 'orders.clear': '清空', 'orders.howToPlay': '游戏引导',
+      'tool.claim': '扩张', 'tool.claimHint': '占领相邻的空地',
+      'tool.hold': '固守', 'tool.holdHint': '强化一格有补给的领地',
+      'tool.attack': '进攻', 'tool.attackHint': '夺取相邻的敌方领地',
+      'tool.combo': '连携', 'tool.comboHint': '完成两次连续行动后解锁',
+      'map.legal': '发光边框 = 可行动', 'map.relay': 'Relay = 切断补给', 'map.beacon': 'Beacon = 得分',
+      'intro.skip': '跳过', 'intro.back': '返回',
+      'intro.hero.kicker': 'GARENA AI BUILD CHALLENGE · 2026',
+      'intro.hero.line': '一座永不静止的火山群岛。',
+      'intro.hero.sub1': '扩张领地，夺取 Relay，并保持 Beacon 的补给。',
+      'intro.hero.sub2': 'Cinder 会读取已发生的战局，公平地重组下一次机会。',
+      'intro.hero.you': '· 你', 'intro.hero.rival': '· 对手', 'intro.hero.world': '· 世界本身',
+      'intro.map.kicker': '1 / 3 · 认识战场',
+      'intro.map.title': '两条战线、两座横桥、一个敌方后方。',
+      'intro.map.north': '北路 · 更近 / 更险', 'intro.map.south': '南路 · 更远 / 更富饶', 'intro.map.relay': '中继站',
+      'intro.map.caption': '突破北路 → 通过东侧横桥 → 切入南路后方。',
+      'intro.map.step1.title': '先选一条战线。', 'intro.map.step1.body': '高地路线更短；肥沃路线会提供更多 Supply。',
+      'intro.map.step2.title': '利用横桥包抄。', 'intro.map.step2.body': '横桥不是第三条主路；它让你在突破后切入另一条战线的后方。',
+      'intro.map.step3.title': '争夺 Relay。', 'intro.map.step3.body': '每座横桥都连接一组两格的补给中继站；它是战术目标，不是收入地块。',
+      'intro.map.step4.title': '留意 Beacon。', 'intro.map.step4.body': '双方到开局 Beacon 路线的距离完全相等。',
+      'intro.ai.kicker': '3 / 3 · CINDER 适配战局', 'intro.ai.title': 'AI Director 为双方创造公平的新选择。',
+      'intro.ai.queue': '排队', 'intro.ai.queueSub': '操作 1 / 2 / 3 + 点地图', 'intro.ai.saltkinSub': '秘密指令',
+      'intro.ai.resolve': '结算', 'intro.ai.resolveSub': '同时发生', 'intro.ai.turn2': '第 2 回合',
+      'intro.ai.warning': '⚠ 预警 · 北岸', 'intro.ai.turn3': '第 3 回合', 'intro.ai.acts': 'CINDER 行动',
+      'intro.ai.victory': '10 点已补给的 Beacon 分', 'intro.ai.victorySub': '或第 25 回合后占有更多领地',
+      'intro.ai.step1.title': '先下指令；对手看不到你的队列。', 'intro.ai.step1.body': '结束回合后，双方指令会同时结算。',
+      'intro.ai.step2.title': '每三回合，Director 读取公开战况。', 'intro.ai.step2.body': '它比较安全的地图改变，说明选择理由，再提前给出预警。',
+      'intro.ai.step3.title': '它会适配，但绝不操纵胜负。', 'intro.ai.step3.body': 'Capital 与 Relay 受规则保护；双方获得同样的机会。',
+      'intro.ai.claim': '扩张', 'intro.ai.hold': '固守', 'intro.ai.attack': '进攻', 'intro.ai.end': '结束回合', 'intro.ai.clear': '清空队列'
+    }
+  };
+
+  function savedLanguage() {
+    try { return window.localStorage.getItem('cinderfall-language') === 'zh' ? 'zh' : 'en'; }
+    catch (e) { return 'en'; }
+  }
+
+  function applyLanguage(next) {
+    language = UI_COPY[next] ? next : 'en';
+    var copy = UI_COPY[language];
+    document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en';
+    document.querySelectorAll('[data-i18n]').forEach(function (el) {
+      var text = copy[el.dataset.i18n];
+      if (text) el.textContent = text;
+    });
+    if (CF.refreshIntroCopy) CF.refreshIntroCopy();
+    if ($('settings-language')) $('settings-language').value = language;
+    try { window.localStorage.setItem('cinderfall-language', language); } catch (e) {}
+    // Dynamic panels are rendered from JavaScript rather than markup, so they
+    // must be refreshed immediately when the language selector changes.
+    if (game) { refresh(); renderFeed(); }
+  }
+
+  function isChinese() { return language === 'zh'; }
+  function routeName(route) {
+    if (!isChinese()) return route;
+    return route === 'NORTH' ? '北路' : route === 'SOUTH' ? '南路' : route;
+  }
+  function actionName(type) {
+    if (!isChinese()) return type === 'expand' ? 'Claim' : type === 'fortify' ? 'Hold' : 'Attack';
+    return type === 'expand' ? '扩张' : type === 'fortify' ? '固守' : '进攻';
+  }
+
+  // Keep model payloads and diagnostic identifiers untouched, but translate
+  // the player-facing event layer shown in Chronicle and Cinder.
+  function eventName(id) {
+    if (!isChinese()) return EV.nameOf(id);
+    var names = {
+      eruption: '火山喷发', tide: '潮汐回应', earthquake: '地震', new_island: '新岛升起',
+      ashfall: '灰烬遮天', bloom: '灰烬复苏', beacon_move: '圣火迁移',
+      rock_cools: '岩层冷却', settlers: '第三方登陆', storm: '风暴季'
+    };
+    return names[id] || EV.nameOf(id);
+  }
+
+  function eventRegion(region) {
+    if (!isChinese()) return EV.regionName(region);
+    return { north: '北部', south: '南部', east: '东部', west: '西部', centre: '环心地带' }[region] || '战场中央';
+  }
+
+  function localizedWarning(template, region, fallback) {
+    if (!isChinese()) return fallback;
+    var r = eventRegion(region);
+    var copy = {
+      eruption: '火山正在' + r + '震动。', tide: '海水正淹向' + r + '的低地。',
+      earthquake: '地面正沿' + r + '开裂。', new_island: r + '的海水正在沸腾，新陆地即将升起。',
+      ashfall: '灰烬正在笼罩整座环岛。', bloom: '雨云正在' + r + '聚集。',
+      beacon_move: '塔上的圣火正在摇曳。', rock_cools: '各处高地正在崩解。',
+      settlers: r + '近海出现陌生的船帆。', storm: '整座环岛的天气正在转变。'
+    };
+    return copy[template] || fallback;
+  }
+
+  function localizedEventMessage(template, text) {
+    if (!isChinese()) return text;
+    var match;
+    if (template === 'eruption' && (match = /in the (.+?)\. (\d+) squares? gone, (\d+) buried/.exec(text)))
+      return '火山在' + eventRegion(match[1]) + '喷发：' + match[2] + ' 格地块沉没，' + match[3] + ' 格成为最肥沃的灰烬土壤。';
+    if (template === 'tide' && (match = /took back (\d+) low squares? in the (.+?)\./.exec(text)))
+      return '海水在' + eventRegion(match[2]) + '收回了 ' + match[1] + ' 格低地；高地从不白送。';
+    if (template === 'earthquake' && (match = /opened in the (.+?) and (\d+) squares?/.exec(text)))
+      return '裂缝贯穿' + eventRegion(match[1]) + '，' + match[2] + ' 格地块沉入海中，补给线被切断。';
+    if (template === 'new_island' && (match = /(\d+) new squares? pushed up out of the water in the (.+?)\./.exec(text)))
+      return match[1] + ' 块新陆地在' + eventRegion(match[2]) + '浮出水面，尚无归属。';
+    if (template === 'ashfall' && (match = /for (\d+) turns?/.exec(text)))
+      return '灰烬遮蔽天空 ' + match[1] + ' 回合；所有进攻费用翻倍。';
+    if (template === 'bloom' && (match = /on the (.+?)\. (\d+) squares? turned green/.exec(text)))
+      return '雨水落在' + eventRegion(match[1]) + '，' + match[2] + ' 格地块变得肥沃；安静地带不再安静。';
+    if (template === 'beacon_move') return '旧塔的圣火熄灭，并在双方之间的空地重新燃起；它从不属于任何一方。';
+    if (template === 'rock_cools' && (match = /For (\d+) turns?/.exec(text)))
+      return '岩层变得冰冷脆弱，持续 ' + match[1] + ' 回合；高度不再提供防御。';
+    if (template === 'settlers' && (match = /in the (.+?) and took (\d+) squares?/.exec(text)))
+      return '第三方势力在' + eventRegion(match[1]) + '登陆并占据 ' + match[2] + ' 格地块。';
+    if (template === 'storm' && (match = /for (\d+) turns?/.exec(text)))
+      return '风暴季持续 ' + match[1] + ' 回合；天气会偏向当前落后的一方。';
+    return text;
+  }
+
+  function goalName(goal) {
+    if (!isChinese()) return goal || '—';
+    return {
+      BREAK_STALEMATE: '打破僵局', RESTORE_COMPETITION: '恢复对抗',
+      CREATE_CONTESTED_PRIZE: '创造争夺目标', PRESERVE_VARIETY: '保持变化',
+      SLOW_RUNAWAY: '抑制滚雪球'
+    }[goal] || '平衡战局';
+  }
+
+  function localizedReading(last) {
+    if (!isChinese()) return last ? last.report : 'Cinder is asleep. It wakes at the end of turn 3.';
+    if (!last) return 'Cinder 尚未苏醒；它会在第 3 回合结算后读取公开战局。';
+    var ash = E.landCount(game, 1), salt = E.landCount(game, 2);
+    var lines = ['第 ' + game.turn + ' 回合 · 当前赛季 ' + game.season + '。',
+      'Ashfarers 占有 ' + ash + ' 格领地；Saltkin 占有 ' + salt + ' 格领地。'];
+    lines.push(game.pending
+      ? '下一项候选：' + eventName(game.pending.template) + '，将在第 ' + game.pending.fireTurn + ' 回合末触发。'
+      : '当前没有待触发的世界事件。');
+    return lines.join('\n');
+  }
+
+  function localizedDecisionEvidence(c) {
+    if (!isChinese()) return c ? c.reasoning : '—';
+    if (!c) return '—';
+    var lines = ['选择：' + eventName(c.template) + ' · 强度 ' + 'I'.repeat(c.intensity || 1) +
+      (c.region ? ' · 目标 ' + eventRegion(c.region) : '')];
+    if (c.goal) lines.push('目标：' + goalName(c.goal));
+    if (c.evidenceUsed && c.evidenceUsed.length) lines.push('读取的公开信号：' + c.evidenceUsed.join('、'));
+    if (c.prediction && c.prediction.text) lines.push('预测：' + c.prediction.text);
+    lines.push('安全性：候选已通过规则审查，事件触发前会再次检查地图。');
+    return lines.join('\n\n');
+  }
 
   var THINKING_COPY = {
     doctrine: {
       kicker: 'SALTKIN WAR COUNCIL', title: 'Reading the resolved battlefield',
-      stages: ['Tracing supplied routes.', 'Weighing NORTH against SOUTH.', 'Counting exposed Relays.', 'Writing a three-turn doctrine.']
+      stages: ['Tracing supplied routes.', 'Weighing NORTH against SOUTH.', 'Counting exposed Relays.', 'Writing a two-turn doctrine.']
     },
     orders: {
       kicker: 'SALTKIN COMMAND TENT', title: 'Sealing the rival orders',
       stages: ['Placing the first command stone.', 'Testing the secondary front.', 'Funding any operation support.', 'Both envelopes are now sealed.']
     },
     director: {
-      kicker: 'CINDER DIRECTOR', title: 'Considering possible futures',
-      stages: ['Reading only resolved history.', 'Simulating candidate world events.', 'Rejecting unsafe or unfair outcomes.', 'Writing the one-turn warning.']
+      kicker: 'CINDER STIRS', title: 'The mountain reads the battle',
+      stages: ['Reading the battle already fought.', 'Feeling the pressure points.', 'Weighing a fair new path.', 'Writing a warning for both sides.']
     }
   };
 
@@ -145,10 +378,16 @@
     app.classList.toggle('ai-thinking-active', !!Object.keys(aiWaits).length);
     app.setAttribute('aria-busy', locked ? 'true' : 'false');
     [].forEach.call(document.querySelectorAll('.tool'), function (button) { button.disabled = locked; });
-    if ($('btn-support')) $('btn-support').disabled = locked || !game || !E.supportType(game, 1, orders);
+    if ($('btn-support')) {
+      var supportType = game && E.supportType(game, 1, orders);
+      var supportAffordable = game && spent() + E.SUPPORT_COST <= E.availableBudget(game, 1);
+      $('btn-support').disabled = locked || !supportType || (!supportRequested && !supportAffordable);
+    }
     if ($('btn-clear')) $('btn-clear').disabled = locked || !orders.length;
     if ($('btn-end')) $('btn-end').disabled = locked || !game || !!game.over;
-    if ($('btn-tutorial')) $('btn-tutorial').disabled = locked;
+    if ($('btn-settings')) $('btn-settings').disabled = locked;
+    if ($('settings-tutorial')) $('settings-tutorial').disabled = locked;
+    if ($('settings-language')) $('settings-language').disabled = locked;
     [].forEach.call(document.querySelectorAll('#tab-console input,#tab-console select,#tab-console button'), function (control) {
       control.disabled = locked;
     });
@@ -170,21 +409,21 @@
     if (!el) return;
     var slide = 0;
     var active = false;
-    var slides = [].slice.call(el.querySelectorAll('.slide'));
-    var labels = [
-      'READ THE RING <kbd>→</kbd>', 'FUND A TURN <kbd>→</kbd>',
-      'COMMIT THE EFFORT <kbd>→</kbd>', 'BREAK AND CUT <kbd>→</kbd>',
-      'CINDER AND VICTORY <kbd>→</kbd>', 'TAKE THE RING <kbd>⏎</kbd>'
-    ];
+    // First play is a 30-second orientation, not a rules manual.  The full
+    // combat/economy detail remains in HOW TO PLAY after the first turn.
+    var allSlides = [].slice.call(el.querySelectorAll('.slide'));
+    var slides = [allSlides[0], allSlides[1], allSlides[5]];
+    function copy(key) { return (UI_COPY[language] && UI_COPY[language][key]) || UI_COPY.en[key] || key; }
 
     CF.intro.init($('introcanvas'));
 
     function go(n) {
       slide = U.clamp(n, 0, slides.length - 1);
-      slides.forEach(function (s) {
-        s.classList.toggle('active', +s.dataset.slide === slide);
-        s.setAttribute('aria-hidden', +s.dataset.slide === slide ? 'false' : 'true');
-        if (+s.dataset.slide === slide) s.scrollTop = 0;
+      allSlides.forEach(function (s) {
+        var isActive = s === slides[slide];
+        s.classList.toggle('active', isActive);
+        s.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+        if (isActive) s.scrollTop = 0;
       });
       [].forEach.call(el.querySelectorAll('.dot-nav'), function (d, i) {
         d.classList.toggle('active', i === slide);
@@ -192,13 +431,21 @@
         else d.removeAttribute('aria-current');
       });
       $('intro-back').disabled = slide === 0;
-      $('intro-progress').textContent = (slide + 1) + ' OF ' + slides.length;
+      $('intro-progress').textContent = language === 'zh'
+        ? (slide + 1) + ' / ' + slides.length
+        : (slide + 1) + ' OF ' + slides.length;
+      var labels = language === 'zh'
+        ? ['查看地图 <kbd>→</kbd>', '认识 Cinder <kbd>→</kbd>', '开始游戏 <kbd>⏎</kbd>']
+        : ['READ THE MAP <kbd>→</kbd>', 'MEET CINDER <kbd>→</kbd>', 'START PLAYING <kbd>⏎</kbd>'];
       $('intro-next').innerHTML = labels[slide];
       if (CF.intro.setScene) CF.intro.setScene(slide);
     }
 
     function dismiss() {
-      if (!active || el.classList.contains('leaving')) return;
+      // The intro element starts visible in HTML.  Dismiss from its visible
+      // state rather than an async-local flag, so Skip always works even if
+      // the initial AI health check resolves before the intro binds.
+      if (el.classList.contains('hidden') || el.classList.contains('leaving')) return;
       el.classList.add('leaving');
       setTimeout(function () {
         el.classList.add('hidden');
@@ -211,7 +458,11 @@
     }
 
     function openIntro() {
-      if (active || interactionLocked()) return;
+      // The cold open is visible by default in the markup.  The first LLM
+      // doctrine request may already be in flight when bindIntro runs; do not
+      // leave that visible layer orphaned behind an interaction lock.  Replays
+      // still respect the lock once the intro has been dismissed.
+      if (active || (interactionLocked() && el.classList.contains('hidden'))) return;
       active = true;
       el.classList.remove('hidden', 'leaving');
       CF.intro.start();
@@ -234,10 +485,12 @@
     $('intro-next').onclick = function () { if (slide >= slides.length - 1) dismiss(); else go(slide + 1); };
     $('intro-back').onclick = function () { go(slide - 1); };
     $('intro-skip').onclick = dismiss;
-    $('btn-tutorial').onclick = openIntro;
     [].forEach.call(el.querySelectorAll('.dot-nav'), function (d) {
       d.onclick = function () { go(+d.dataset.go); };
     });
+
+    CF.openTutorial = openIntro;
+    CF.refreshIntroCopy = function () { go(slide); };
 
     openIntro();
   }
@@ -269,6 +522,7 @@
       seasonAtIssue: 0,
       eventsAtIssue: 0
     };
+    mockPlayerAI = { pending: false, doctrine: null, source: 'IDLE', model: null, latencyMs: 0, error: null };
     orders = []; supportRequested = false; tool = 'expand';
     R.setState(game);
     R.setPreview([]);
@@ -298,10 +552,16 @@
     var seq = ++saltkinAI.requestSeq;
     var payload = CF.profile.requestPayload(game, requestMatch);
     payload.trigger = reason;
+    // A remote doctrine is useful context, not a reason to freeze the first
+    // playable moment.  Start with the deterministic commander and let the
+    // LLM replace its intent when ready.  Later tactical re-reads can retain
+    // the visible thinking state because the player has already learned the
+    // basic loop.
+    var showWait = reason !== 'match_start';
     saltkinAI.pending = true;
     saltkinAI.lastRequestTurn = snapshotTurn;
     saltkinAI.error = null;
-    beginAIWait('doctrine', 'doctrine');
+    if (showWait) beginAIWait('doctrine', 'doctrine');
     refresh();
 
     CF.ai.saltkin(payload).then(function (response) {
@@ -370,6 +630,57 @@
       worldChanged: worldChanged
     }))
       requestDoctrine(lostLand >= 3 ? 'lost_land' : beaconChanged ? 'beacon_changed' : worldChanged ? 'world_event' : 'doctrine_expired');
+  }
+
+  // Designer test: LLM picks an Ashfarer doctrine, then the same deterministic
+  // legal-order bot used by Saltkin turns it into an observable player queue.
+  // This keeps a model test meaningful without letting a model cheat.
+  function requestMockPlayerMove() {
+    if (!game || game.over || interactionLocked()) return;
+    var requestMatch = matchId + '-mock-' + game.turn + '-' + Date.now();
+    var snapshotTurn = game.turn;
+    var payload = CF.profile.requestPayload(game, requestMatch);
+    payload.trigger = 'mock_player_turn';
+    payload.publicState.controlledSide = 'ASHFARERS';
+    payload.publicState.mainEffort = game.strategy && game.strategy[1] || null;
+    mockPlayerAI.pending = true;
+    mockPlayerAI.error = null;
+    beginAIWait('mock-player', 'orders', 'Mock Player is choosing a doctrine; rules will generate the legal moves.');
+    refresh();
+
+    CF.ai.mockPlayer(payload).then(function (response) {
+      if (!game || matchId !== requestMatch.split('-mock-')[0] || game.turn !== snapshotTurn ||
+          response.matchId !== requestMatch || response.snapshotTurn !== snapshotTurn) return;
+      var plan = CF.bot.plan(game, 1, false, response.decision);
+      orders = plan.orders.slice();
+      supportRequested = !!plan.orders.support;
+      mockPlayerAI = {
+        pending: false, doctrine: response.decision, source: response.meta.source || 'LLM',
+        model: response.meta.model || null, latencyMs: response.meta.latencyMs || 0, error: null
+      };
+      var summary = orders.map(function (o) {
+        return o.type === 'raid' ? 'Attack ' + E.coord(game, o.from) + '→' + E.coord(game, o.to)
+          : U.cap(o.type) + ' ' + E.coord(game, o.to);
+      }).join(' + ') || 'no legal move';
+      say('a', 'MOCK PLAYER · ' + response.decision.stance + ' / ' + response.decision.objective +
+        ' — ' + response.decision.intent + ' Queued: ' + summary + '.');
+      endAIWait('mock-player');
+      renderFeed();
+      refresh();
+    }).catch(function (err) {
+      if (!game || game.turn !== snapshotTurn) return;
+      var fallback = CF.bot.plan(game, 1, false, null);
+      orders = fallback.orders.slice();
+      supportRequested = !!fallback.orders.support;
+      mockPlayerAI = {
+        pending: false, doctrine: null, source: 'FALLBACK', model: null, latencyMs: 0,
+        error: (err && err.code) || 'request_failed'
+      };
+      say('a', 'MOCK PLAYER fallback (' + mockPlayerAI.error + ') queued a deterministic legal move.');
+      endAIWait('mock-player');
+      renderFeed();
+      refresh();
+    });
   }
 
   // ============================================================== ordering
@@ -529,6 +840,9 @@
     var prepared;
     try {
       prepared = D.prepare(game, saltkinAI.doctrine);
+      // Ask only for player-facing prose in the active interface language;
+      // candidate selection remains bounded by deterministic validation.
+      prepared.payload.displayLanguage = isChinese() ? 'zh-CN' : 'en';
       directorAudit = { prepared: prepared, source: 'PENDING', error: null };
       updateAIWait('director', {
         detail: 'Testing ' + prepared.candidates.length + ' safe candidate' +
@@ -554,20 +868,39 @@
       return;
     }
 
+    // Cloud reasoning improves the showcase, but may never hold a playable
+    // turn hostage. After five seconds, the same pre-validated baseline
+    // continues the match; a later cloud response cannot rewrite that turn.
+    var settled = false;
+    var deadline = setTimeout(function () {
+      if (settled || !isCurrentRun(run)) return;
+      settled = true;
+      directorFallback(run, prepared, { code: 'interaction_budget' });
+    }, 5000);
+    function clearDeadline() { clearTimeout(deadline); }
+    function fallbackOnce(err) {
+      if (settled || !isCurrentRun(run)) return;
+      settled = true;
+      clearDeadline();
+      directorFallback(run, prepared, err);
+    }
+
     CF.ai.director(prepared.payload).then(function (response) {
-      if (!isCurrentRun(run)) return;
+      if (settled || !isCurrentRun(run)) return;
       if (response.season !== prepared.report.season) {
-        directorFallback(run, prepared, { code: 'season_mismatch' });
+        fallbackOnce({ code: 'season_mismatch' });
         return;
       }
       var ev;
       try { ev = D.fromLLM(game, prepared, response.decision, response.meta); }
-      catch (err) { directorFallback(run, prepared, err); return; }
-      if (!ev) { directorFallback(run, prepared, { code: 'unknown_candidate' }); return; }
+      catch (err) { fallbackOnce(err); return; }
+      if (!ev) { fallbackOnce({ code: 'unknown_candidate' }); return; }
+      settled = true;
+      clearDeadline();
       directorAudit.source = 'LLM';
       directorAudit.meta = response.meta;
       finishDirector(run, ev);
-    }, function (err) { directorFallback(run, prepared, err); });
+    }, function (err) { fallbackOnce(err); });
   }
 
   function directorFallback(run, prepared, err) {
@@ -583,7 +916,7 @@
     ev.reasoning = 'Source: FALLBACK · ' + code + '\n\n' + ev.reasoning;
     directorAudit.source = 'FALLBACK';
     directorAudit.error = code;
-    finishDirector(run, ev, 'Signal lost — deterministic safe baseline takes over.');
+    finishDirector(run, ev, 'Cinder takes the safest path and the battle continues.');
   }
 
   function finishDirector(run, ev, fallbackMessage) {
@@ -755,8 +1088,11 @@
     $('hud-reserve').textContent = game.reserve && game.reserve[1] || 0;
     $('hud-spent').textContent = sp;
     $('hud-left').textContent = Math.max(0, budget - sp);
+    var commandLimit = E.fieldCommands(game);
     $('hud-command-used').textContent = fieldSpent();
-    $('hud-command-left').textContent = Math.max(0, E.FIELD_COMMANDS - fieldSpent());
+    $('hud-command-max').textContent = commandLimit;
+    $('hud-command-left').textContent = Math.max(0, commandLimit - fieldSpent());
+    document.querySelector('.reserve-row').classList.toggle('hidden', game.stats.length < 2);
     var fill = $('hud-spendfill');
     fill.style.width = budget ? Math.min(100, sp / budget * 100) + '%' : '0%';
     fill.classList.toggle('over', sp > budget);
@@ -767,6 +1103,8 @@
 
     renderOrders();
     renderSupport();
+    renderOpeningBrief();
+    renderRouteGuides();
     renderPlayerEffort();
     renderMods();
     renderWarning();
@@ -775,8 +1113,9 @@
     R.setPreview(orders);
     R.setLegalTargets(legalTargetsForTool(), tool);
     $('btn-end-label').textContent = orders.length
-      ? 'RESOLVE ' + orders.length + (orders.length === 1 ? ' ORDER' : ' ORDERS') + ' · ' + sp + ' SUPPLY'
-      : 'END TURN · HOLD';
+      ? (isChinese() ? '结算 ' + orders.length + ' 条指令 · ' + sp + ' Supply'
+        : 'RESOLVE ' + orders.length + (orders.length === 1 ? ' ORDER' : ' ORDERS') + ' · ' + sp + ' SUPPLY')
+      : (isChinese() ? '结束回合 · 待命' : 'END TURN · HOLD');
     syncControls();
   }
 
@@ -786,7 +1125,9 @@
     if (!orders.length) {
       var li = document.createElement('li');
       li.className = 'empty';
-      li.textContent = 'no orders yet — pick a tool, then click the map';
+      li.textContent = isChinese()
+        ? '暂无指令——选择操作后，点击地图上的发光地块'
+        : 'no orders yet — pick a tool, then click the map';
       ul.appendChild(li);
       return;
     }
@@ -794,16 +1135,18 @@
     if (command.redeploys) {
       var redeploy = document.createElement('li');
       redeploy.className = 'redeploy';
-      redeploy.innerHTML = '<span class="oi">↻</span><span>Redeploy to ' + command.main +
-        '</span><span class="oc">−' + E.MOBILIZATION_COST + ' · 1 CMD</span>';
-      redeploy.title = 'Changing route consumes one Field Command and mobilization supply; remove the queued order to cancel it.';
+      redeploy.innerHTML = '<span class="oi">↻</span><span>' + (isChinese() ? '切换至 ' + routeName(command.main) : 'Switch front → ' + command.main) +
+        '</span><span class="oc">' + (isChinese() ? '占用 2 次行动 · 尚余 1 次' : 'uses 2 actions · 1 remains') + '</span>';
+      redeploy.title = isChinese()
+        ? '切换战线需要一次重新部署与一次行动，但本回合仍可再执行 1 次操作。'
+        : 'Changing front spends redeployment plus one action; one action remains this turn.';
       ul.appendChild(redeploy);
     } else if (command.mobilizationCost) {
       var mobilize = document.createElement('li');
       mobilize.className = 'mobilize';
-      mobilize.innerHTML = '<span class="oi">⚑</span><span>Mobilize second command</span><span class="oc">−' +
+      mobilize.innerHTML = '<span class="oi">⚑</span><span>' + (isChinese() ? '使用第二次行动' : 'Use your second move') + '</span><span class="oc">−' +
         command.mobilizationCost + '</span>';
-      mobilize.title = 'The second Field Command costs additional supply to mobilize.';
+      mobilize.title = isChinese() ? '第二次行动会额外消耗 Supply。' : 'Your second move costs additional supply.';
       ul.appendChild(mobilize);
     }
     orders.forEach(function (o, k) {
@@ -813,10 +1156,12 @@
       var label = o.type === 'raid'
         ? E.coord(game, o.from) + ' → ' + E.coord(game, o.to)
         : E.coord(game, o.to);
-      li.innerHTML = '<span class="oi">' + icon + '</span><span>' + U.cap(o.type) + ' ' + label +
+      var orderName = actionName(o.type);
+      li.innerHTML = '<span class="oi">' + icon + '</span><span>' + orderName + ' ' + label +
                      '</span><span class="oc">−' + E.costOf(game, o.type) + '</span>' +
-                     '<button class="order-remove" type="button" aria-label="Remove ' + U.cap(o.type) +
-                     ' order at ' + E.coord(game, o.to) + '">×</button>';
+                     '<button class="order-remove" type="button" aria-label="' +
+                     (isChinese() ? '移除' : 'Remove ') + orderName +
+                     (isChinese() ? ' 指令：' : ' order at ') + E.coord(game, o.to) + '">×</button>';
       li.querySelector('.order-remove').onclick = function () { removeOrder(k); };
       ul.appendChild(li);
     });
@@ -825,9 +1170,11 @@
       var supportRow = document.createElement('li');
       supportRow.className = 'support';
       supportRow.innerHTML = '<span class="oi">★</span><span>' +
-        (support === 'march' ? 'March Supply' : 'Siege Support') +
+        (support === 'march'
+          ? (isChinese() ? '扩张连携补给' : 'March Supply')
+          : (isChinese() ? '进攻连携支援' : 'Siege Support')) +
         '</span><span class="oc">−' + E.SUPPORT_COST + '</span>';
-      supportRow.title = 'Click Operation Support above to remove this upgrade.';
+      supportRow.title = isChinese() ? '再次点击上方连携按钮即可移除此强化。' : 'Click Operation Support above to remove this upgrade.';
       ul.appendChild(supportRow);
     }
   }
@@ -835,36 +1182,122 @@
   function renderSupport() {
     var button = $('btn-support');
     var type = E.supportType(game, 1, orders);
+    var affordable = spent() + E.SUPPORT_COST <= E.availableBudget(game, 1);
     if (!type) supportRequested = false;
-    button.disabled = !type;
+    // A visible but unaffordable Combo is useful feedback, but it must never
+    // look clickable.  It becomes removable again after it has been selected.
+    button.disabled = !type || (!supportRequested && !affordable);
     button.classList.toggle('active', !!(type && supportRequested));
-    var title = button.querySelector('b'), detail = button.querySelector('span');
-    title.textContent = type === 'march' ? 'MARCH SUPPLY · +' + E.SUPPORT_COST
-      : type === 'siege' ? 'SIEGE SUPPORT · +' + E.SUPPORT_COST
-      : 'OPERATION SUPPORT · +' + E.SUPPORT_COST;
-    detail.textContent = type === 'march' ? 'Second chained Expand starts at strength 2'
-      : type === 'siege' ? 'Coordinated Raid gains +1 attack'
-      : 'Queue a chained Expand or coordinated Raid';
+    button.setAttribute('aria-pressed', type && supportRequested ? 'true' : 'false');
+    var title = button.querySelector('.tname'), detail = button.querySelector('em');
+    title.textContent = type === 'march'
+      ? (isChinese() ? '扩张连携' : 'CLAIM COMBO')
+      : type === 'siege'
+        ? (isChinese() ? '进攻连携' : 'ATTACK COMBO')
+        : (isChinese() ? '连携' : 'COMBO');
+    detail.textContent = type === 'march'
+      ? (isChinese() ? '第二块连续扩张的地块以强度 2 建立' : 'Second chained Expand starts at strength 2')
+      : type === 'siege'
+        ? (isChinese() ? '协同进攻额外获得 +1 攻击力' : 'Coordinated Raid gains +1 attack')
+        : (isChinese() ? '完成两次连续行动后解锁' : 'Unlock with two linked actions');
+    if (type && !supportRequested && !affordable) {
+      var shortfall = Math.max(0, spent() + E.SUPPORT_COST - E.availableBudget(game, 1));
+      detail.textContent += isChinese() ? ' · 还差 ' + shortfall + ' Supply' : ' · need ' + shortfall + ' Supply';
+    }
   }
 
   function renderPlayerEffort() {
     var el = $('player-effort');
     var preview = fieldPreview();
     var current = game.strategy && game.strategy[1];
+    var actionLimit = E.fieldCommands(game);
     el.classList.toggle('redeploy', preview.redeploys > 0);
+    if (preview.commands >= actionLimit) {
+      var unspent = Math.max(0, E.availableBudget(game, 1) - spent());
+      var banked = Math.max(0, E.income(game, 1) - spent());
+      var combo = E.supportType(game, 1, orders);
+      if (combo && unspent >= E.SUPPORT_COST && !supportRequested) {
+        el.textContent = isChinese()
+          ? '已用 ' + actionLimit + ' 次行动 · 剩余 ' + unspent + ' Supply · 花 2 点使用' +
+            (combo === 'march' ? '扩张连携' : '进攻连携') + '，或存为 Reserve'
+          : actionLimit + ' MOVES USED · ' + unspent + ' SUPPLY LEFT · SPEND 2 ON ' +
+            (combo === 'march' ? 'CLAIM COMBO' : 'ATTACK COMBO') + ' OR BANK IT AS RESERVE';
+      } else {
+        el.textContent = isChinese()
+          ? '已用 ' + actionLimit + ' 次行动 · 剩余 ' + unspent + ' Supply' +
+            (banked ? ' · 下回合存为 ' + banked + ' Reserve' : '')
+          : actionLimit + ' MOVES USED · ' + unspent + ' SUPPLY LEFT' +
+            (banked ? ' · ' + banked + ' WILL BANK AS RESERVE NEXT TURN' : '');
+      }
+      return;
+    }
     if (!current && !orders.length) {
-      el.textContent = 'ASH SURGE · ' + game.opening.route + ' · FIRST ORDER LOCKS 3 TURNS';
+      el.textContent = isChinese()
+        ? '先选一路 · 第一次扩张会锁定路线 2 回合 · 先点“扩张”与发光地块'
+        : 'CHOOSE A FRONT · YOUR FIRST CLAIM LOCKS IT FOR 2 TURNS · THEN PICK A GLOWING TILE';
+      return;
+    }
+    if (orders.length && preview.commands < actionLimit) {
+      var remainingActions = actionLimit - preview.commands;
+      var remainingSupply = Math.max(0, E.availableBudget(game, 1) - spent());
+      var linked = E.supportType(game, 1, orders);
+      if (linked && remainingSupply >= E.SUPPORT_COST) {
+        el.textContent = isChinese()
+          ? '已排 ' + preview.commands + ' 次行动 · 还可行动 ' + remainingActions + ' 次 · 可固守已有领地，或花 2 Supply 使用连携'
+          : preview.commands + ' MOVES QUEUED · ' + remainingActions + ' LEFT · HOLD EXISTING LAND OR SPEND 2 SUPPLY ON COMBO';
+      } else {
+        el.textContent = isChinese()
+          ? '已排 ' + preview.commands + ' 次行动 · 还可行动 ' + remainingActions + ' 次 · 剩余 ' + remainingSupply + ' Supply'
+          : preview.commands + ' MOVES QUEUED · ' + remainingActions + ' LEFT · ' + remainingSupply + ' SUPPLY REMAINS';
+      }
       return;
     }
     var main = preview.main || current && current.main || game.opening.route;
     var until = preview.untilTurn || current && current.untilTurn || game.turn + E.EFFORT_HORIZON - 1;
     if (preview.redeploys) {
-      el.textContent = 'REDEPLOY → ' + main + ' · ACTION USES BOTH COMMANDS · LOCK THROUGH T' + until;
+      el.textContent = isChinese()
+        ? '切换至' + routeName(main) + ' · 会用掉 2 次行动 · 此后专注至第 ' + until + ' 回合'
+        : 'SWITCH TO ' + main + ' · THIS USES BOTH MOVES · THEN FOCUS THROUGH T' + until;
     } else if (until >= game.turn) {
-      el.textContent = 'MAIN EFFORT · ' + main + ' · LOCKED THROUGH T' + until;
+      el.textContent = isChinese()
+        ? '已选择' + routeName(main) + ' · 第 ' + until + ' 回合结束前不可转向另一路'
+        : 'YOU CHOSE ' + main + ' · THE OTHER FRONT IS LOCKED THROUGH T' + until;
     } else {
-      el.textContent = 'MAIN EFFORT · ' + main + ' · REDEPLOY AVAILABLE FOR 1 COMMAND';
+      el.textContent = isChinese()
+        ? '主攻' + routeName(main) + ' · 本回合可以切换战线'
+        : 'FOCUS · ' + main + ' · YOU MAY SWITCH FRONT THIS TURN';
     }
+  }
+
+  function renderRouteGuides() {
+    var current = game.strategy && game.strategy[1];
+    var preview = fieldPreview();
+    var main = preview.main || current && current.main || null;
+    var opening = game.opening && game.turn <= game.opening.untilTurn ? game.opening.route : null;
+    ['NORTH', 'SOUTH'].forEach(function (route) {
+      var el = $('route-guide-' + route.toLowerCase());
+      var isMain = main === route;
+      var isOpening = opening === route;
+      el.classList.toggle('main', isMain);
+      el.classList.toggle('opening', isOpening);
+      var label = isChinese() ? routeName(route) : route + ' ROUTE';
+      var state = isMain
+        ? (isChinese() ? '已选择主攻' : 'MAIN FRONT SELECTED')
+        : isOpening
+          ? (isChinese() ? '开局肥沃加成' : 'OPENING FERTILITY +1')
+          : (isChinese() ? '可选战线' : 'AVAILABLE FRONT');
+      el.innerHTML = label + '<span class="route-state">' + state + '</span>';
+    });
+  }
+
+  function renderOpeningBrief() {
+    var el = $('opening-brief');
+    var openingActive = game.opening && game.turn <= game.opening.untilTurn;
+    el.classList.toggle('hidden', !openingActive);
+    if (!openingActive) return;
+    el.textContent = isChinese()
+      ? '灰烬涌动 · ' + routeName(game.opening.route) + ' · 已补给地块 +1 肥沃度 · 至第 ' + game.opening.untilTurn + ' 回合'
+      : 'ASH SURGE · ' + game.opening.route + ' ROUTE · +1 SUPPLIED FERTILITY · THROUGH T' + game.opening.untilTurn;
   }
 
   function renderMods() {
@@ -872,11 +1305,9 @@
     box.innerHTML = '';
     var m = game.mods;
     function tag(txt) { var d = document.createElement('div'); d.className = 'mod'; d.textContent = txt; box.appendChild(d); }
-    if (m.ashfall > 0) tag('ASHFALL · raids cost double · ' + m.ashfall + 'T');
-    if (m.rockCooled > 0) tag('ROCK COOLED · height gives nothing · ' + m.rockCooled + 'T');
-    if (m.storm > 0) tag('STORM · the weather favours the loser · ' + m.storm + 'T');
-    if (game.opening && game.turn <= game.opening.untilTurn)
-      tag('ASH SURGE · ' + game.opening.route + ' ROUTE · +1 SUPPLIED FERTILITY · THROUGH T' + game.opening.untilTurn);
+    if (m.ashfall > 0) tag(isChinese() ? '灰烬落下 · 进攻费用翻倍 · ' + m.ashfall + ' 回合' : 'ASHFALL · raids cost double · ' + m.ashfall + 'T');
+    if (m.rockCooled > 0) tag(isChinese() ? '岩层冷却 · 高度不再提供防御 · ' + m.rockCooled + ' 回合' : 'ROCK COOLED · height gives nothing · ' + m.rockCooled + 'T');
+    if (m.storm > 0) tag(isChinese() ? '风暴 · 天气偏向落后方 · ' + m.storm + ' 回合' : 'STORM · the weather favours the loser · ' + m.storm + 'T');
     if (game.pressure && game.pressure.staleTurns >= 2)
       tag('CINDER PRESSURE · stillness ' + game.pressure.staleTurns + 'T');
     if (game.pressure && game.pressure.bridgeTurns > 0)
@@ -913,8 +1344,32 @@
     game.feed.push({ turn: game.turn, cls: cls, text: text });
   }
 
+  function currentTask() {
+    if (game.pressure && game.pressure.bridgeTurns > 0) {
+      return isChinese()
+        ? '当前任务：中央临时横桥已开启，双方可在 ' + game.pressure.bridgeTurns + ' 回合内争夺机会。'
+        : 'CURRENT TASK: The temporary central crossing is open — contest it in ' + game.pressure.bridgeTurns + ' turns.';
+    }
+    if (!orders.length && game.turn <= 2) {
+      return isChinese()
+        ? '当前任务：选择北路或南路，点击发光地块完成扩张。'
+        : 'CURRENT TASK: Choose NORTH or SOUTH, then Claim a glowing tile.';
+    }
+    if (!orders.length && !game.tiles[game.beacon].owner) {
+      return isChinese()
+        ? '当前任务：向 Beacon 或附近 Relay 推进，抢占下一处明确目标。'
+        : 'CURRENT TASK: Advance toward the Beacon or a nearby Relay.';
+    }
+    return isChinese()
+      ? '当前任务：保持 Beacon 有补给；需要突破时争夺 Relay 或寻找横桥机会。'
+      : 'CURRENT TASK: Keep the Beacon supplied; contest Relays or use a crossing to break through.';
+  }
+
   function renderFeed() {
-    var el = $('feed');
+    var task = $('current-task');
+    var el = $('feed-log');
+    var followLatest = el.scrollTop + el.clientHeight >= el.scrollHeight - 12;
+    task.textContent = currentTask();
     el.innerHTML = '';
     game.feed.slice(-60).forEach(function (f) {
       var d = document.createElement('div');
@@ -923,7 +1378,7 @@
       d.querySelector('.fe-x').textContent = f.text;
       el.appendChild(d);
     });
-    el.scrollTop = el.scrollHeight;
+    if (followLatest) el.scrollTop = el.scrollHeight;
   }
 
   function banner(title, sub) {
@@ -956,7 +1411,8 @@
   function renderChronicle() {
     var el = $('chronicle');
     if (!game.chronicle.length) {
-      el.innerHTML = '<p class="panel-note" style="border:none">Nothing yet. The mountain wakes at the end of turn 3.</p>';
+      el.innerHTML = '<p class="panel-note" style="border:none">' +
+        (isChinese() ? '暂无战报。Cinder 会在第 3 回合结算后苏醒。' : 'Nothing yet. The mountain wakes at the end of turn 3.') + '</p>';
       return;
     }
     el.innerHTML = '';
@@ -964,16 +1420,16 @@
       var d = document.createElement('div');
       d.className = 'ch-entry';
 
-      var tag = c.predictionResult === 'hit' ? '<span class="tag hit">PREDICTION HELD</span>'
-              : c.predictionResult === 'miss' ? '<span class="tag miss">PREDICTION WRONG</span>'
-              : c.predictionResult === 'refused' ? '<span class="tag miss">EVENT REFUSED</span>'
-              : '<span class="tag wait">NOT YET MEASURED</span>';
+      var tag = c.predictionResult === 'hit' ? '<span class="tag hit">' + (isChinese() ? '预测成立' : 'PREDICTION HELD') + '</span>'
+              : c.predictionResult === 'miss' ? '<span class="tag miss">' + (isChinese() ? '预测未成立' : 'PREDICTION WRONG') + '</span>'
+              : c.predictionResult === 'refused' ? '<span class="tag miss">' + (isChinese() ? '事件被拒绝' : 'EVENT REFUSED') + '</span>'
+              : '<span class="tag wait">' + (isChinese() ? '尚待验证' : 'NOT YET MEASURED') + '</span>';
 
       d.innerHTML =
         '<div class="ch-top">' +
-          '<span class="ch-season">SEASON ' + c.season + ' · TURN ' + c.fireTurn + ' · ' + (c.source || 'FALLBACK') + '</span>' +
+          '<span class="ch-season">' + (isChinese() ? '赛季 ' + c.season + ' · 第 ' + c.fireTurn + ' 回合 · ' : 'SEASON ' + c.season + ' · TURN ' + c.fireTurn + ' · ') + (c.source || 'FALLBACK') + '</span>' +
           '<span class="ch-int">' + 'I'.repeat(c.intensity) + '</span>' +
-          '<span class="ch-name">' + EV.nameOf(c.template) + '</span>' +
+          '<span class="ch-name">' + eventName(c.template) + '</span>' +
         '</div>' +
         '<div class="ch-body">' +
           '<div class="ch-msg"></div>' +
@@ -981,10 +1437,10 @@
           '<div class="ch-pred">' + tag + '<span class="pred-text"></span></div>' +
         '</div>';
 
-      d.querySelector('.ch-msg').textContent = c.fired ? '“' + c.message + '”'
+      d.querySelector('.ch-msg').textContent = c.fired ? '“' + localizedEventMessage(c.template, c.message) + '”'
         : c.predictionResult === 'refused' ? '(' + c.message + ')'
-        : '(warned, not yet fired) ' + c.warning;
-      d.querySelector('.ch-why').textContent = c.reasoning;
+        : (isChinese() ? '（预警，尚未触发）' : '(warned, not yet fired) ') + localizedWarning(c.template, c.region, c.warning);
+      d.querySelector('.ch-why').textContent = localizedDecisionEvidence(c);
       d.querySelector('.pred-text').textContent = c.prediction.text + (c.measured ? ' — ' + c.measured : '');
       el.appendChild(d);
     });
@@ -993,8 +1449,8 @@
   // ------------------------------------------------------------- console
   function renderConsole() {
     var last = game.chronicle[game.chronicle.length - 1];
-    $('con-report').textContent = last ? last.report : 'Cinder is asleep. It wakes at the end of turn 3.';
-    $('con-reason').textContent = last ? last.reasoning : '—';
+    $('con-report').textContent = localizedReading(last);
+    $('con-reason').textContent = localizedDecisionEvidence(last);
 
     var healthLine = 'SERVER ' + (aiHealth.ready ? 'READY' : 'FALLBACK') +
       ' · ' + (aiHealth.model || 'openai/gpt-oss-120b') +
@@ -1004,7 +1460,10 @@
       (saltkinAI.latencyMs ? ' · ' + saltkinAI.latencyMs + 'ms' : '');
     var directorLine = 'DIRECTOR ' + (directorAudit ? directorAudit.source : 'SLEEPING') +
       (directorAudit && directorAudit.error ? ' · ' + directorAudit.error : '');
-    $('con-ai-status').textContent = [healthLine, saltkinLine, directorLine].join('\n');
+    var mockLine = 'MOCK PLAYER ' + (mockPlayerAI.pending ? 'PENDING' : mockPlayerAI.source) +
+      (mockPlayerAI.error ? ' · ' + mockPlayerAI.error : '') +
+      (mockPlayerAI.latencyMs ? ' · ' + mockPlayerAI.latencyMs + 'ms' : '');
+    $('con-ai-status').textContent = [healthLine, saltkinLine, directorLine, mockLine].join('\n');
     $('con-ai-status').classList.toggle('fallback', !aiHealth.ready || saltkinAI.source === 'FALLBACK' ||
       (directorAudit && directorAudit.source === 'FALLBACK'));
 
@@ -1014,37 +1473,60 @@
     var playerProfile = CF.profile.build(game, CF.profile.load());
     $('con-profile').textContent = JSON.stringify(playerProfile.features, null, 2) +
       '\n\nEVIDENCE\n' + JSON.stringify(playerProfile.evidence, null, 2);
-    var effortText = lastBotEffort
-      ? ' · MAIN ' + lastBotEffort.main + ' / ' + lastBotEffort.secondary + ' · through T' + lastBotEffort.untilTurn
-      : '';
-    $('saltkin-intent').textContent = saltkinAI.doctrine
-      ? 'SALTKIN AI · ' + saltkinAI.doctrine.stance + ' / ' + saltkinAI.doctrine.objective + ' · ' + saltkinAI.doctrine.intent
-        + effortText
-      : 'SALTKIN AI · FALLBACK · deterministic ' + lastBotMood + ' strategy' + effortText;
+    // The rail is a glanceable next-step surface. The full doctrine stays in
+    // Cinder Console; show the opponent only once its plan has game evidence.
+    var intentEl = $('saltkin-intent');
+    var hasResolvedTurn = game.stats.length > 0;
+    intentEl.classList.toggle('hidden', !hasResolvedTurn);
+    if (hasResolvedTurn) {
+      if (saltkinAI.doctrine) {
+        intentEl.textContent = isChinese()
+          ? '盐潮军 AI · ' + saltkinAI.doctrine.stance + ' / ' + saltkinAI.doctrine.objective
+          : 'SALTKIN AI · ' + saltkinAI.doctrine.stance + ' / ' + saltkinAI.doctrine.objective;
+      } else {
+        intentEl.textContent = isChinese()
+          ? '盐潮军 AI · 规则策略 · ' + lastBotMood
+          : 'SALTKIN AI · FALLBACK · ' + lastBotMood;
+      }
+    }
 
     if (!directorAudit || !directorAudit.prepared) {
-      $('con-candidates').textContent = 'no season evaluated yet';
+      $('con-candidates').textContent = isChinese() ? '尚未评估赛季候选。' : 'no season evaluated yet';
     } else {
       var prepared = directorAudit.prepared;
       var candidateLines = prepared.candidates.map(function (c) {
-        return c.id + ' ' + EV.nameOf(c.event.template) + ' I'.repeat(c.event.intensity) + ' ' + c.event.region.toUpperCase() +
-          ' · raids ' + c.summary.raids_per_turn.median + ' · captures ' + c.summary.captures.median +
-          ' · gap ' + c.summary.land_gap.median;
+        return c.id + ' ' + eventName(c.event.template) + ' I'.repeat(c.event.intensity) + ' ' +
+          (isChinese() ? eventRegion(c.event.region) : c.event.region.toUpperCase()) +
+          (isChinese() ? ' · 进攻 ' : ' · raids ') + c.summary.raids_per_turn.median +
+          (isChinese() ? ' · 夺取 ' : ' · captures ') + c.summary.captures.median +
+          (isChinese() ? ' · 领地差 ' : ' · gap ') + c.summary.land_gap.median;
       });
       candidateLines.push('');
-      candidateLines.push('SHADOW · ' + EV.nameOf(prepared.baseline.template) + ' I'.repeat(prepared.baseline.intensity) +
-        ' ' + prepared.baseline.region.toUpperCase());
+      candidateLines.push((isChinese() ? '对照基线 · ' : 'SHADOW · ') + eventName(prepared.baseline.template) +
+        ' I'.repeat(prepared.baseline.intensity) + ' ' +
+        (isChinese() ? eventRegion(prepared.baseline.region) : prepared.baseline.region.toUpperCase()));
       $('con-candidates').textContent = candidateLines.join('\n');
     }
 
     var p = game.pending;
     $('con-pending').textContent = p
-      ? EV.nameOf(p.template) + ' · intensity ' + p.intensity + (p.region ? ' · ' + EV.regionName(p.region) : '') +
-        ' · fires at the end of turn ' + p.fireTurn
-      : 'none — the rival is playing ' + lastBotMood;
+      ? eventName(p.template) + (isChinese() ? ' · 强度 ' : ' · intensity ') + p.intensity +
+        (p.region ? ' · ' + (isChinese() ? eventRegion(p.region) : EV.regionName(p.region)) : '') +
+        (isChinese() ? ' · 将在第 ' + p.fireTurn + ' 回合末触发' : ' · fires at the end of turn ' + p.fireTurn)
+      : (isChinese() ? '暂无待触发事件 · 对手当前策略：' + lastBotMood : 'none — the rival is playing ' + lastBotMood);
+
+    $('con-mock-status').textContent = mockPlayerAI.pending
+      ? (isChinese() ? '正在调用 ' : 'calling ') + (aiHealth.model || (isChinese() ? '已配置模型' : 'the configured model')) + '…'
+      : mockPlayerAI.source === 'LLM' && mockPlayerAI.doctrine
+        ? 'LLM · ' + mockPlayerAI.doctrine.stance + ' / ' + mockPlayerAI.doctrine.objective +
+          ' · ' + mockPlayerAI.latencyMs + 'ms'
+        : mockPlayerAI.source === 'FALLBACK'
+          ? (isChinese() ? '降级策略 · ' : 'fallback · ') + mockPlayerAI.error +
+            (isChinese() ? ' · 仅生成合法机器人指令' : ' · legal bot queue only')
+          : (isChinese() ? '就绪 · 尚未生成模拟行动' : 'ready — no mock move queued');
 
     var mem = $('con-memory'), keys = Object.keys(game.memory);
-    if (!keys.length) { mem.textContent = 'no history yet'; }
+    if (!keys.length) { mem.textContent = isChinese() ? '暂无事件历史。' : 'no history yet'; }
     else {
       mem.innerHTML = '';
       keys.sort().forEach(function (k) {
@@ -1056,7 +1538,9 @@
         row.innerHTML = '<span>' + EV.nameOf(k) + '</span>' +
                         '<span class="mbar"><i style="width:' + pct + '%"></i></span>' +
                         '<b>' + m.uses + 'x</b>';
-        row.title = m.hits + ' predictions right, ' + m.misses + ' wrong';
+        row.title = isChinese()
+          ? '预测成立 ' + m.hits + ' 次，未成立 ' + m.misses + ' 次'
+          : m.hits + ' predictions right, ' + m.misses + ' wrong';
         mem.appendChild(row);
       });
     }
@@ -1065,6 +1549,36 @@
   // ================================================================ input
   function bindUI() {
     var cv = $('map');
+
+    // --- persistent, non-gameplay settings ---------------------------------
+    // The menu lives in the top bar so the guide remains discoverable even
+    // when the Orders rail is not the active panel.
+    var settingsButton = $('btn-settings');
+    var settingsMenu = $('settings-menu');
+    function closeSettings() {
+      settingsMenu.classList.add('hidden');
+      settingsButton.setAttribute('aria-expanded', 'false');
+    }
+    settingsButton.onclick = function () {
+      if (interactionLocked()) return;
+      var isOpen = !settingsMenu.classList.contains('hidden');
+      settingsMenu.classList.toggle('hidden', isOpen);
+      settingsButton.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+      if (!isOpen) $('settings-language').focus();
+    };
+    $('settings-tutorial').onclick = function () {
+      closeSettings();
+      if (CF.openTutorial) CF.openTutorial();
+    };
+    $('settings-language').onchange = function () { applyLanguage(this.value); };
+    document.addEventListener('pointerdown', function (event) {
+      if (!settingsMenu.classList.contains('hidden') &&
+          !settingsMenu.contains(event.target) && !settingsButton.contains(event.target)) closeSettings();
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && !settingsMenu.classList.contains('hidden')) closeSettings();
+    });
+    applyLanguage(savedLanguage());
 
     cv.addEventListener('mousemove', function (e) {
       var point = R.pointFromClient(e.clientX, e.clientY);
@@ -1143,6 +1657,7 @@
       renderFeed();
       refresh();
     };
+    $('con-mock').onclick = requestMockPlayerMove;
 
     // template picker for the override
     var sel = $('con-override');
@@ -1209,10 +1724,11 @@
       var target = e.target;
       var tag = target && target.tagName ? target.tagName.toLowerCase() : '';
       if (interactionLocked() || e.repeat || e.isComposing ||
-          /^(button|input|select|textarea)$/.test(tag) || (target && target.isContentEditable)) return;
-      if (e.key === '1') setTool('expand');
-      else if (e.key === '2') setTool('fortify');
-      else if (e.key === '3') setTool('raid');
+          /^(input|select|textarea)$/.test(tag) || (target && target.isContentEditable)) return;
+      if (e.key === '1') { e.preventDefault(); setTool('expand'); }
+      else if (e.key === '2') { e.preventDefault(); setTool('fortify'); }
+      else if (e.key === '3') { e.preventDefault(); setTool('raid'); }
+      else if (e.key === '4') { e.preventDefault(); toggleSupport(); }
       else if (e.key === 'Enter') endTurn();
       else if (e.key === 'Escape') { orders = []; supportRequested = false; refresh(); }
     });
@@ -1268,6 +1784,13 @@
         }
       } else if (tool === 'fortify') {
         if (E.canFortify(game, 1, i) != null) hint = 'fortify for ' + E.COST.fortify + ' → strength ' + Math.min(E.MAX_STRENGTH, t.str + E.FORTIFY_GAIN);
+      }
+      if (!hint) {
+        var preview = fieldPreview();
+        if (preview.commands >= E.fieldCommands(game)) hint = E.fieldCommands(game) + ' moves are already queued — resolve the turn to act again.';
+        else if (tool === 'expand') hint = 'Not a Claim target — choose a glowing empty tile next to your land.';
+        else if (tool === 'fortify') hint = 'Not a Hold target — choose one of your glowing supplied tiles.';
+        else hint = 'Not an Attack target — choose a glowing enemy tile beside your land.';
       }
       if (t.relay && t.owner === 2) {
         var impact = E.relayImpact(game, 1, i);

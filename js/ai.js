@@ -68,6 +68,7 @@ CF.ai = (function () {
     configure: configure,
     health: health,
     saltkin: function (payload) { return post('/api/ai/saltkin', payload); },
+    mockPlayer: function (payload) { return post('/api/ai/mock-player', payload); },
     director: function (payload) { return post('/api/ai/director', payload); },
     setFailure: function (value) { simulateFailure = !!value; },
     get simulateFailure() { return simulateFailure; }

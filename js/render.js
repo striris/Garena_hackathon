@@ -752,7 +752,7 @@ CF.render = (function () {
   }
 
   function drawLegalTargets(t) {
-    var pulse = 0.55 + Math.sin(t * 3.2) * 0.18;
+    var pulse = 0.76 + Math.sin(t * 3.2) * 0.16;
     legalTargets.forEach(function (target) {
       var index = typeof target === 'number' ? target : target.i;
       var special = typeof target === 'object' && target.special;
@@ -763,14 +763,16 @@ CF.render = (function () {
       ctx.globalAlpha = pulse;
       ctx.strokeStyle = color;
       ctx.shadowColor = color;
-      ctx.shadowBlur = special ? 16 : 9;
-      ctx.lineWidth = special ? 3 : 1.8;
+      ctx.shadowBlur = special ? 20 : 15;
+      ctx.lineWidth = special ? 4.2 : 3.1;
       if (legalType === 'fortify') {
         ctx.beginPath();
         ctx.arc(r.x + r.s / 2, r.y + r.s / 2, r.s * .42, 0, Math.PI * 2);
         ctx.stroke();
       } else {
-        var inset = special ? 1 : 5;
+        var inset = special ? 1 : 3;
+        ctx.setLineDash([5, 3]);
+        ctx.lineDashOffset = -(t * 20) % 8;
         ctx.strokeRect(r.x + inset, r.y + inset, r.s - inset * 2, r.s - inset * 2);
       }
       ctx.restore();

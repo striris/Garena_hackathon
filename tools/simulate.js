@@ -178,13 +178,13 @@ const southWhole = [6, 7].every(y => {
   for (let x = 1; x <= 12; x++) if (!g1.tiles[M.idx(x, y)].land) return false;
   return true;
 });
-const permanentBridges = [[3, 4], [9, 10]].every(cols =>
-  cols.every(x => [4, 5].every(y => g1.tiles[M.idx(x, y)].land)));
 const centreReserved = [6, 7].every(x => [4, 5].every(y => {
   const t = g1.tiles[M.idx(x, y)];
   return !t.land && !!t.pressureReserved;
 }));
 const relayTiles = Object.values(g1.relays).flat();
+const permanentBridges = [[3, 4], [9, 10]].every(cols =>
+  cols.every(x => [4, 5].every(y => g1.tiles[M.idx(x, y)].land)));
 check('map is a two-route ladder with two broad mirrored cross-bridges',
   northWhole && southWhole && permanentBridges && centreReserved && relayTiles.length === 8,
   `${relayTiles.length} Relay squares`);
@@ -226,23 +226,30 @@ check('resolveTurn does not mutate its input', JSON.stringify(before.tiles) === 
 
 // Fortify is command-limited, supplied-only, once per tile, +1, and capped.
 let fortProbe = E.newGame(3301);
-const fortA = M.idx(1, 3), fortB = fortProbe.capitals[1];
+const fortTiles = E.ownedTiles(fortProbe, 1);
+const fortA = fortTiles[0], fortB = fortTiles[1], fortC = M.idx(2, 3);
+// Add one supplied north-route tile so this test isolates the three-action
+// allowance rather than failing because the south route is deliberately
+// locked after the first north-route order.
+fortProbe.tiles[fortC].owner = 1;
 fortProbe.tiles[fortA].str = 3;
 fortProbe.tiles[fortB].str = 3;
+fortProbe.tiles[fortC].str = 3;
 fortProbe.supply = E.computeSupply(fortProbe);
 const fortified = E.resolveTurn(fortProbe, [
   { type: 'fortify', to: fortA },
   { type: 'fortify', to: fortA },
-  { type: 'fortify', to: fortB }
+  { type: 'fortify', to: fortB },
+  { type: 'fortify', to: fortC }
 ], []).state;
 const fortStat = fortified.stats[fortified.stats.length - 1];
-check('Fortify is +1, once per square, and field commands cap at two',
-  fortified.tiles[fortA].str === 4 && fortified.tiles[fortB].str === 4 &&
-  fortStat.military[1] === 2 && fortStat.fieldCommands[1] === 2);
+check('Fortify is +1, once per square, and three actions can be spent',
+  fortified.tiles[fortA].str === 4 && fortified.tiles[fortB].str === 4 && fortified.tiles[fortC].str === 4 &&
+  fortStat.military[1] === 3 && fortStat.fieldCommands[1] === 3);
 
-// The first order establishes a three-turn lane lock. Both commands may push
-// two squares deep on it; the other route is illegal until the lock expires,
-// then redeployment plus one action consumes the complete allowance.
+// The first order establishes a two-turn lane lock. Chained expansion still
+// works within that route; changing lane after the lock uses two actions but
+// creates no additional hidden Supply charge.
 let effortRules = E.newGame(3305);
 effortRules.tiles[effortRules.capitals[1]].fert = 10;
 effortRules.supply = E.computeSupply(effortRules);
@@ -252,26 +259,40 @@ let effortTurn = E.resolveTurn(effortRules, [
   { type: 'expand', from: northOne, to: northTwo }
 ], []).state;
 const firstEffortStat = effortTurn.stats[effortTurn.stats.length - 1];
-check('two field commands can continue expansion two squares down one route',
+check('two Claims can continue expansion two squares down one route',
   effortTurn.tiles[northOne].owner === 1 && effortTurn.tiles[northTwo].owner === 1 &&
   firstEffortStat.fieldCommands[1] === 2 && effortTurn.strategy[1].main === 'NORTH' &&
-  effortTurn.strategy[1].untilTurn === 3);
+  effortTurn.strategy[1].untilTurn === 2);
 effortTurn.turn = 2;
 effortTurn.tiles[effortTurn.capitals[1]].fert = 10;
 let lockedAttempt = E.resolveTurn(effortTurn, [{ type: 'expand', to: southOne }], []).state;
-check('the secondary route cannot receive active orders during the three-turn lock',
+check('the secondary route cannot receive active orders during the two-turn lock',
   lockedAttempt.tiles[southOne].owner === 0 &&
   lockedAttempt.stats[lockedAttempt.stats.length - 1].fieldCommands[1] === 0);
+
+let southOpening = E.newGame(3306);
+southOpening.tiles[southOpening.capitals[1]].fert = 10;
+southOpening.tiles[southOpening.capitals[1]].str = 3;
+southOpening.supply = E.computeSupply(southOpening);
+const capitalHoldSouth = E.resolveTurn(southOpening, [
+  { type: 'fortify', to: southOpening.capitals[1] },
+  { type: 'expand', to: southOne }
+], []).state;
+check('Capital Hold is neutral and does not block a south-route opening',
+  capitalHoldSouth.tiles[southOpening.capitals[1]].str === 4 &&
+  capitalHoldSouth.tiles[southOne].owner === 1 && capitalHoldSouth.strategy[1].main === 'SOUTH' &&
+  capitalHoldSouth.stats[capitalHoldSouth.stats.length - 1].fieldCommands[1] === 2);
+
 effortTurn.turn = 4;
 effortTurn.tiles[effortTurn.capitals[1]].fert = 10;
 let redeployed = E.resolveTurn(effortTurn, [{ type: 'expand', to: southOne }], []).state;
 const redeployStat = redeployed.stats[redeployed.stats.length - 1];
-check('changing route after the lock costs redeployment plus the action',
+check('changing route after the lock uses two actions but adds no hidden Supply tax',
   redeployed.tiles[southOne].owner === 1 && redeployStat.fieldCommands[1] === 2 &&
-  redeployStat.redeploys[1] === 1 && redeployStat.mobilization[1] === E.MOBILIZATION_COST &&
-  redeployStat.spent[1] === E.COST.expand + E.MOBILIZATION_COST &&
+  redeployStat.redeploys[1] === 1 && redeployStat.mobilization[1] === 0 &&
+  redeployStat.spent[1] === E.COST.expand &&
   redeployed.strategy[1].main === 'SOUTH' &&
-  redeployed.strategy[1].untilTurn === 6);
+  redeployed.strategy[1].untilTurn === 5);
 
 function setSideIncome(state, side, amount) {
   E.ownedTiles(state, side).forEach(i => { state.tiles[i].fert = 0; });
@@ -288,15 +309,15 @@ const lowResult = E.resolveTurn(lowIncome, [
   { type: 'expand', from: lowFirst, to: lowSecond }
 ], []).state;
 const lowStat = lowResult.stats[lowResult.stats.length - 1];
-check('income controls whether the second Field Command can be mobilized',
+check('income controls whether two Claims fit in the Supply budget',
   lowResult.tiles[lowFirst].owner === 1 && lowResult.tiles[lowSecond].owner === 0 &&
   lowStat.fieldCommands[1] === 1 && lowStat.spent[1] === E.COST.expand &&
-  lowStat.reserveAfter[1] === 1);
+  lowStat.reserveAfter[1] === 2);
 
 let reserveProbe = E.newGame(3311);
 setSideIncome(reserveProbe, 1, 20);
 reserveProbe = E.resolveTurn(reserveProbe, [], []).state;
-check('half of unused income becomes reserve up to the cap',
+check('all unused income becomes reserve up to the cap',
   reserveProbe.reserve[1] === E.RESERVE_CAP);
 setSideIncome(reserveProbe, 1, 0);
 const reserveFirst = M.idx(2, 3), reserveSecond = M.idx(3, 3);
@@ -305,10 +326,10 @@ const reserveFunded = E.resolveTurn(reserveProbe, [
   { type: 'expand', from: reserveFirst, to: reserveSecond }
 ], []).state;
 const reserveStat = reserveFunded.stats[reserveFunded.stats.length - 1];
-check('stored reserve can fund two actions but never a third command',
+check('stored reserve funds two Claims but Supply blocks a third',
   reserveFunded.tiles[reserveFirst].owner === 1 && reserveFunded.tiles[reserveSecond].owner === 1 &&
-  reserveStat.spent[1] === E.COST.expand * 2 + E.MOBILIZATION_COST &&
-  reserveFunded.reserve[1] === 0 && reserveStat.fieldCommands[1] === E.FIELD_COMMANDS);
+  reserveStat.spent[1] === E.COST.expand * 2 &&
+  reserveFunded.reserve[1] === E.RESERVE_CAP - E.COST.expand * 2 && reserveStat.fieldCommands[1] === 2);
 
 let marchProbe = E.newGame(3312);
 setSideIncome(marchProbe, 1, 8);
@@ -385,34 +406,27 @@ const siegeStat = fundedSiege.stats[fundedSiege.stats.length - 1];
 check('Siege Support spends two and adds one only to a coordinated Raid',
   plainSiege.tiles[siegePlain.target].owner === 2 &&
   fundedSiege.tiles[siegeFunded.target].owner === 1 &&
-  siegeStat.support[1] === 'siege' && siegeStat.spent[1] === 10);
+  siegeStat.support[1] === 'siege' && siegeStat.spent[1] === E.COST.raid * 2 + E.SUPPORT_COST);
 
-// The two-square Relay landing is broad enough to fight over, but once both
-// squares fall the territory beyond it loses its path to the capital.
+// Capturing both squares of a rear Relay blocks the opposing front from its
+// capital, turning a local victory into a visible supply-line objective.
 let relayProbe = E.newGame(4477);
-for (let x = 5; x <= 12; x++) {
-  [6, 7].forEach(y => {
-    const i = M.idx(x, y);
-    relayProbe.tiles[i].owner = 2;
-    relayProbe.tiles[i].str = 2;
-  });
+for (let x = 5; x <= 12; x++) for (let y = 6; y <= 7; y++) {
+  const i = M.idx(x, y); relayProbe.tiles[i].owner = 2; relayProbe.tiles[i].str = 2;
 }
 relayProbe.tiles[relayProbe.capitals[2]].owner = 2;
 relayProbe.tiles[M.idx(12, 6)].owner = 2;
 relayProbe.supply = E.computeSupply(relayProbe);
 const relayOne = M.idx(9, 6), relayTwo = M.idx(9, 7);
-relayProbe.tiles[relayOne].owner = 1;
-relayProbe.tiles[relayOne].str = 1;
+relayProbe.tiles[relayOne].owner = 1; relayProbe.tiles[relayOne].str = 1;
 relayProbe.supply = E.computeSupply(relayProbe);
 const relayPreview = E.relayImpact(relayProbe, 1, relayTwo);
-relayProbe.tiles[relayTwo].owner = 1;
-relayProbe.tiles[relayTwo].str = 1;
-const relayAfter = E.computeSupply(relayProbe);
+relayProbe.tiles[relayTwo].owner = 1; relayProbe.tiles[relayTwo].str = 1;
+relayProbe.supply = E.computeSupply(relayProbe);
 let relayCut = 0;
-for (let x = 5; x <= 8; x++) [6, 7].forEach(y => {
-  const i = M.idx(x, y);
-  if (relayProbe.tiles[i].owner === 2 && relayAfter[i] !== 2) relayCut++;
-});
+for (let x = 5; x <= 8; x++) for (let y = 6; y <= 7; y++) {
+  if (relayProbe.supply[M.idx(x, y)] !== 2) relayCut++;
+}
 check('capturing both squares of a rear Relay cuts the opposite front',
   relayPreview && relayPreview.tiles === relayCut && relayCut >= 6,
   `${relayCut} Saltkin front squares cut off`);
@@ -515,6 +529,10 @@ check('Saltkin request excludes the current order queue', !privacyJSON.includes(
   !Object.prototype.hasOwnProperty.call(privacyPayload, 'orders') &&
   !Object.prototype.hasOwnProperty.call(privacyPayload, 'currentOrders'));
 
+const commandCurve = [1, 2, 3, 4, 5, 6, 7, 8].map(turn => E.fieldCommands({ turn }));
+check('action slots follow the capped 3/4/4/5/5/6 curve',
+  commandCurve.join('/') === '3/4/4/5/5/6/6/6', commandCurve.join('/'));
+
 const lifecycleBase = { pending: false, lastRequestTurn: 1, turn: 4, hasDoctrine: true,
   uses: 1, lostLand: 3, beaconChanged: true, worldChanged: true };
 const lifecycleOk = !CF.profile.shouldRequestDoctrine(lifecycleBase) &&
@@ -525,19 +543,19 @@ const lifecycleOk = !CF.profile.shouldRequestDoctrine(lifecycleBase) &&
 check('Doctrine lasts two turns and requests at most once per turn', lifecycleOk);
 
 let effortProbe = E.newGame(8181), effortMains = [], effortLegal = true;
-for (let turn = 1; turn <= 3; turn++) {
+for (let turn = 1; turn <= 2; turn++) {
   effortProbe.turn = turn;
   const plan = CF.bot.plan(effortProbe, 2, false);
   effortMains.push(plan.effort.main);
   const command = E.commandPreview(effortProbe, 2, plan.orders);
   const forts = plan.orders.filter(o => o.type === 'fortify').map(o => o.to);
-  if (!command.ok || command.commands > E.FIELD_COMMANDS || new Set(forts).size !== forts.length) effortLegal = false;
+  if (!command.ok || command.commands > E.fieldCommands(effortProbe) || new Set(forts).size !== forts.length) effortLegal = false;
   effortProbe = E.resolveTurn(effortProbe, [], plan.orders).state;
 }
-effortProbe.turn = 4;
+effortProbe.turn = 3;
 const nextEffort = CF.bot.plan(effortProbe, 2, false).effort;
-check('Saltkin main effort is command-limited and locked for a three-turn horizon',
-  effortLegal && new Set(effortMains).size === 1 && nextEffort.issuedTurn === 4 && nextEffort.untilTurn === 6,
+check('Saltkin main effort is command-limited and locked for a two-turn horizon',
+  effortLegal && new Set(effortMains).size === 1 && nextEffort.issuedTurn === 3 && nextEffort.untilTurn === 4,
   `${effortMains.join('/')} then ${nextEffort.main}`);
 
 let laneDiscipline = true, chainedAdvanceSeen = false;
@@ -552,7 +570,7 @@ for (let seed = 0; seed < 20; seed++) {
       const preview = E.commandPreview(laneProbe, side, plan.orders);
       const cost = E.planCost(laneProbe, side, plan.orders, !!plan.orders.support);
       if (lanes.size > 1 || (lanes.size === 1 && !lanes.has(plan.effort.main)) ||
-          !preview.ok || preview.commands > E.FIELD_COMMANDS || cost.total > E.availableBudget(laneProbe, side))
+          !preview.ok || preview.commands > E.fieldCommands(laneProbe) || cost.total > E.availableBudget(laneProbe, side))
         laneDiscipline = false;
       const planned = [];
       plan.orders.forEach(order => {
@@ -582,7 +600,7 @@ const doctrineProbe = E.newGame(9191);
         doctrineCases++;
         if (plan.spent > plan.budget) doctrineLegal = false;
         const command = E.commandPreview(doctrineProbe, 2, plan.orders);
-        if (!command.ok || command.commands > E.FIELD_COMMANDS) doctrineLegal = false;
+        if (!command.ok || command.commands > E.fieldCommands(doctrineProbe)) doctrineLegal = false;
         const fortTargets = plan.orders.filter(order => order.type === 'fortify').map(order => order.to);
         if (new Set(fortTargets).size !== fortTargets.length) doctrineLegal = false;
         const raidGroups = {};

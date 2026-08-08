@@ -139,7 +139,8 @@ CF.profile = (function () {
         beaconOwner: state.tiles[state.beacon].owner,
         beaconSupplied: !state.tiles[state.beacon].owner ||
           state.supply[state.beacon] === state.tiles[state.beacon].owner,
-        fieldCommandsPerTurn: E.FIELD_COMMANDS,
+        fieldCommandsThisTurn: E.fieldCommands(state),
+        fieldCommandsBase: E.FIELD_COMMANDS,
         secondCommandMobilizationCost: E.MOBILIZATION_COST,
         operationSupportCost: E.SUPPORT_COST,
         openingFocus: state.opening ? state.opening.route : null,

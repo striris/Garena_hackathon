@@ -40,7 +40,7 @@ CF.bot = (function () {
       main: main,
       secondary: main === 'NORTH' ? 'HOLD SOUTH' : 'HOLD NORTH',
       issuedTurn: state.turn,
-      untilTurn: state.turn + 2
+      untilTurn: state.turn + E.EFFORT_HORIZON - 1
     };
   }
 
@@ -232,7 +232,7 @@ CF.bot = (function () {
 
     cands.sort(function (p, q) { return q.score - p.score; });
 
-    // Expand, Raid, and Fortify all draw from the same two field commands.
+    // Expand, Raid, and Fortify all draw from the action slots available this turn.
     // Paired raids and chained expansion deliberately consume both.
     var orders = [], spent = 0, field = 0, fortified = {}, expandedTo = {}, raidSourcesUsed = {};
     for (var c = 0; c < cands.length; c++) {
@@ -283,16 +283,16 @@ CF.bot = (function () {
       if (o.type === 'raid') (raidSourcesUsed[o.to] || (raidSourcesUsed[o.to] = [])).push(o.from);
       if (o.type === 'expand') expandedTo[o.to] = true;
       spent = trialCost.total;
-      if (field >= E.FIELD_COMMANDS) break;
+      if (field >= E.fieldCommands(state)) break;
     }
 
     // A turtle may spend a remaining command, but never twice on one square,
     // never while cut off, and never above the global strength cap.
-    if (mood === 'turtle' && field < E.FIELD_COMMANDS && budget - spent >= E.COST.fortify) {
+    if (mood === 'turtle' && field < E.fieldCommands(state) && budget - spent >= E.COST.fortify) {
       var stack = mine.slice().sort(function (p, q) {
         return (state.tiles[q].fert + state.tiles[q].elev) - (state.tiles[p].fert + state.tiles[p].elev);
       });
-      for (var si = 0; si < stack.length && field < E.FIELD_COMMANDS && budget - spent >= E.COST.fortify; si++) {
+      for (var si = 0; si < stack.length && field < E.fieldCommands(state) && budget - spent >= E.COST.fortify; si++) {
         var to = stack[si];
         if (laneOf(state, to) !== effort.main || fortified[to] || E.canFortify(state, side, to) == null) continue;
         trial = orders.concat([{ type: 'fortify', to: to }]);

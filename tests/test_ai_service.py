@@ -78,6 +78,14 @@ class AIServiceTests(unittest.TestCase):
         self.assertEqual(client.completions.calls[0]["model"], "openai/gpt-oss-120b")
         self.assertEqual(client.completions.calls[0]["messages"][0]["role"], "system")
 
+    def test_mock_player_uses_the_same_validated_doctrine_schema(self):
+        client = FakeClient([SALT_DECISION])
+        service = AIService(client=client, model="moonshotai/Kimi-K2.7-Code")
+        result = service.mock_player(SALT_PAYLOAD)
+        self.assertEqual(result["decision"], SALT_DECISION)
+        self.assertEqual(result["meta"]["model"], "moonshotai/Kimi-K2.7-Code")
+        self.assertIn("Ashfarers", client.completions.calls[0]["messages"][0]["content"])
+
     def test_director_rejects_unknown_candidate(self):
         invalid = dict(DIRECTOR_DECISION, selected_candidate="C99")
         with self.assertRaises(AIServiceError) as caught:
@@ -138,6 +146,7 @@ class AIServiceTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         for relative in (
             "ai/prompts/saltkin.md",
+            "ai/prompts/mock_player.md",
             "ai/prompts/director.md",
             "ai/schemas/saltkin.json",
             "ai/schemas/director.json",

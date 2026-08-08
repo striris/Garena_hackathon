@@ -9,12 +9,17 @@
 CF.engine = (function () {
   var U = CF.util, M = CF.mapgen;
 
-  var COST = { expand: 2, fortify: 2, raid: 3 };
-  var FIELD_COMMANDS = 2;
-  var EFFORT_HORIZON = 3;
-  var MOBILIZATION_COST = 2;
+  // Supply is the main per-turn constraint. The action curve deliberately
+  // grows 3, 4, 4, 5, 5, 6, then stays at 6: early turns remain readable,
+  // while later turns have room to react without becoming an endless queue.
+  var COST = { expand: 3, fortify: 2, raid: 1 };
+  var FIELD_COMMANDS = 3;
+  // A two-turn commitment is long enough to give a front an identity, while
+  // still letting a new world opportunity at T3 become an immediate choice.
+  var EFFORT_HORIZON = 2;
+  var MOBILIZATION_COST = 0;
   var SUPPORT_COST = 2;
-  var RESERVE_CAP = 6;
+  var RESERVE_CAP = 8;
   var FORTIFY_GAIN = 1;
   var MAX_STRENGTH = 6;
   var SYNERGY_BONUS = 2;
@@ -33,6 +38,9 @@ CF.engine = (function () {
       beacon: m.beacon,
       relays: m.relays,
       pressureBridge: m.pressureBridge,
+      // Ash Surge highlights the shared opening route without overwhelming
+      // its normal terrain income: the UI and the actual Supply calculation
+      // both use the same +1 bonus.
       opening: { route: m.openingFocus, untilTurn: 4, fertilityBonus: 1 },
       turn: 1,
       bp: { 1: 0, 2: 0 },
@@ -58,6 +66,10 @@ CF.engine = (function () {
 
   function raidCost(state) { return state.mods.ashfall > 0 ? COST.raid * 2 : COST.raid; }
   function costOf(state, type) { return type === 'raid' ? raidCost(state) : COST[type]; }
+  function fieldCommands(state) {
+    var turn = state && state.turn || 1;
+    return Math.min(6, FIELD_COMMANDS + Math.floor(turn / 2));
+  }
   function isMilitary(type) { return type === 'raid' || type === 'fortify'; }
   function isFieldAction(type) { return type === 'expand' || type === 'raid' || type === 'fortify'; }
 
@@ -90,6 +102,10 @@ CF.engine = (function () {
   function orderLane(state, order) {
     if (!order) return null;
     var target = state.tiles[order.to];
+    // The capital is a neutral defensive anchor, not a hidden north-route
+    // order. Holding it must remain legal after choosing either front, and a
+    // first-turn Hold must not silently choose the player's main effort.
+    if (order.type === 'fortify' && target && target.capital) return 'CAPITAL';
     if (target && (target.route === 'north' || target.route === 'south')) return laneOf(state, order.to);
     if (order.from != null && state.tiles[order.from]) return laneOf(state, order.from);
     return target ? laneOf(state, order.to) : null;
@@ -258,6 +274,16 @@ CF.engine = (function () {
   }
 
   function commitFieldCommand(state, ctx, lane) {
+    var limit = fieldCommands(state);
+    if (lane === 'CAPITAL') {
+      if (ctx.commands + 1 > limit)
+        return { ok: false, reason: 'All action slots are already committed.' };
+      var capitalMobilization = ctx.commands < limit && ctx.commands + 1 >= limit
+        ? MOBILIZATION_COST : 0;
+      ctx.commands++;
+      ctx.mobilizationCost += capitalMobilization;
+      return { ok: true, cost: 1, redeployed: false, mobilizationCost: capitalMobilization };
+    }
     if (!lane) return { ok: false, reason: 'This order is not on a recognised route.' };
     var cost = 1, redeployed = false;
     var main = ctx.main, issuedTurn = ctx.issuedTurn, untilTurn = ctx.untilTurn;
@@ -281,15 +307,15 @@ CF.engine = (function () {
         reason: 'Main effort is locked to ' + main + ' through turn ' + untilTurn + '.'
       };
     }
-    if (ctx.commands + cost > FIELD_COMMANDS) {
+    if (ctx.commands + cost > limit) {
       return {
         ok: false,
         reason: redeployed
-          ? 'Redeploying and acting costs both field commands.'
-          : 'Both field commands are already committed.'
+          ? 'Redeploying and acting consumes two action slots.'
+          : 'All action slots are already committed.'
       };
     }
-    var mobilization = ctx.commands < FIELD_COMMANDS && ctx.commands + cost >= FIELD_COMMANDS
+    var mobilization = ctx.commands < limit && ctx.commands + cost >= limit
       ? MOBILIZATION_COST : 0;
     ctx.main = main;
     ctx.issuedTurn = issuedTurn;
@@ -405,7 +431,7 @@ CF.engine = (function () {
     var cutBefore = { 1: cutOffCount(1), 2: cutOffCount(2) };
 
     // Every territorial action uses field command. The first accepted action
-    // establishes a three-turn main effort. Once that lock expires, changing
+    // establishes a two-turn main effort. Once that lock expires, changing
     // route spends an additional command on redeployment, leaving room for
     // only one action that turn.
     [[1, ordersA], [2, ordersB]].forEach(function (pair) {
@@ -473,7 +499,9 @@ CF.engine = (function () {
       var reserveUsed = Math.max(0, spent[side] - turnIncome[side]);
       var reserveLeft = Math.max(0, reserveBefore[side] - reserveUsed);
       var unspentIncome = Math.max(0, turnIncome[side] - spent[side]);
-      s.reserve[side] = Math.min(RESERVE_CAP, reserveLeft + Math.floor(unspentIncome / 2));
+      // Every unspent Supply is carried forward.  A visible resource should
+      // never disappear at a 2:1 exchange just because Moves are capped.
+      s.reserve[side] = Math.min(RESERVE_CAP, reserveLeft + unspentIncome);
     });
 
     var all = accepted[1].concat(accepted[2]);
@@ -886,7 +914,7 @@ CF.engine = (function () {
 
   return {
     COST: COST, SIDE: SIDE, MAX_TURNS: MAX_TURNS, BEACON_TO_WIN: BEACON_TO_WIN,
-    FIELD_COMMANDS: FIELD_COMMANDS, EFFORT_HORIZON: EFFORT_HORIZON,
+    FIELD_COMMANDS: FIELD_COMMANDS, fieldCommands: fieldCommands, EFFORT_HORIZON: EFFORT_HORIZON,
     MOBILIZATION_COST: MOBILIZATION_COST, SUPPORT_COST: SUPPORT_COST,
     RESERVE_CAP: RESERVE_CAP, SIEGE_SUPPORT_BONUS: SIEGE_SUPPORT_BONUS,
     FORTIFY_GAIN: FORTIFY_GAIN,
