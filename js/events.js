@@ -37,14 +37,14 @@ CF.events = (function () {
   }
 
   function isLand(t) { return t.land; }
-  function isWater(t) { return !t.land; }
+  function isWater(t) { return !t.land && !t.pressureReserved; }
 
   // Sinking a square is the one destructive primitive. Capitals are
   // never destroyed — that is a hard rule, checked here and again in
   // the validator.
   function sink(state, i, fx) {
     var t = state.tiles[i];
-    if (!t.land || t.capital) return false;
+    if (!t.land || t.capital || t.relay) return false;
     t.land = false; t.owner = 0; t.str = 0; t.elev = 0; t.fert = 0; t.crater = 0;
     fx.push({ kind: 'sink', at: i });
     return true;
@@ -52,7 +52,7 @@ CF.events = (function () {
 
   function raise(state, i, fx, elev, fert) {
     var t = state.tiles[i];
-    if (t.land) return false;
+    if (t.land || t.pressureReserved) return false;
     t.land = true; t.owner = 0; t.str = 0;
     t.elev = elev; t.fert = fert; t.born = state.turn;
     fx.push({ kind: 'rise', at: i });
@@ -67,8 +67,8 @@ CF.events = (function () {
       blurb: 'Cinder breathes. Land is destroyed, and the ring around the crater becomes the richest soil on the map.',
       warn: function (ev) { return 'The mountain is shaking in ' + regionName(ev.region) + '.'; },
       run: function (s, ev, rand, fx) {
-        var cands = tilesIn(s, ev.region, function (t) { return t.land && !t.capital; });
-        if (!cands.length) cands = tilesIn(s, 'centre', function (t) { return t.land && !t.capital; });
+        var cands = tilesIn(s, ev.region, function (t) { return t.land && !t.capital && !t.relay; });
+        if (!cands.length) cands = tilesIn(s, 'centre', function (t) { return t.land && !t.capital && !t.relay; });
         if (!cands.length) return null;
         // the mouth opens where the land is worth most — the wreckage
         // has to be a prize, not a footnote
@@ -102,7 +102,7 @@ CF.events = (function () {
       blurb: 'All low ground sinks. It punishes whoever built low, by exactly the same rule for both sides.',
       warn: function (ev) { return 'The water is rising against the low ground of ' + regionName(ev.region) + '.'; },
       run: function (s, ev, rand, fx) {
-        var low = tilesIn(s, ev.region, function (t) { return t.land && t.elev <= 1 && !t.capital; });
+        var low = tilesIn(s, ev.region, function (t) { return t.land && t.elev <= 1 && !t.capital && !t.relay; });
         if (!low.length) return null;
         low.sort(function (a, b) { return s.tiles[a].fert - s.tiles[b].fert; });
         var take = Math.max(1, Math.round(low.length * (0.28 + 0.24 * ev.intensity)));
@@ -309,7 +309,7 @@ CF.events = (function () {
       if (!inRegion(s, i, region)) continue;
       var t = s.tiles[i];
       if (!t.land) continue;
-      if (t.capital) return -1;               // never cut through a capital
+      if (t.capital || t.relay) return -1;    // capitals and Relay infrastructure survive
       total += t.owner ? 3 : 1;
     }
     return total;

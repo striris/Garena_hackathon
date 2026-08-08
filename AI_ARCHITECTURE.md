@@ -56,6 +56,36 @@ seconds for a concise demo.
 The browser cannot request `.env`, Python source, Prompt files, Schema files, or
 other repository content through the static server allowlist.
 
+## Deterministic battlefield and combat authority
+
+The generated battlefield has a fixed double-route ladder skeleton: broad north
+and south capital routes plus two two-tile-wide, rotationally mirrored
+cross-caldera bridges. Procedural generation varies only mirrored terrain and
+outer fringe land, so it cannot remove the flanking topology. Eight visible
+Relay squares mark the four bridge landings.
+They have zero fertility and low elevation, so their value comes only from
+connectivity rather than extra income or defensive terrain.
+
+Expand, Raid, and Fortify share two field commands per side. Fortify costs two,
+adds one, is limited to one use per supplied square per turn, and cannot exceed
+strength six. The engine—not the prompt—locks both sides to a north/south main
+effort for three turns. After expiry, changing route consumes one command on
+redeployment. Filling the second command slot costs 2 supply. Half of unspent
+income becomes a capped six-point reserve. A once-per-turn, two-supply Operation
+Support can establish a chained Expand at strength 2 or add +1 to a coordinated
+Raid; it cannot affect Fortify. Two consecutive Expands may advance through the
+first new square; two distinct supplied Raid sources aimed at one target gain
++2. A seeded, equi-distant Ash Surge and Beacon give both sides the same opening
+route focus. The LLM Doctrine adjusts priorities but cannot add commands or
+waive rules.
+
+Supply remains a capital flood fill. Taking both squares of a Relay cross-section
+can therefore isolate the front beyond it. Cut-off land earns no fertility,
+cannot Fortify, and starves; an unsupplied Beacon scores no point. Cinder Pressure
+is trusted engine code: two unchanged turns warn, three erode excess front-line
+strength, and continued stillness opens a neutral central bridge for two turns.
+It never grants ownership or directly cuts either side's supply.
+
 ## Saltkin privacy and lifecycle
 
 The player profile uses only orders accepted and resolved by the engine. It
@@ -71,6 +101,14 @@ even after a world event, three-tile loss, or Beacon change. Each turn can start
 at most one request. Responses are accepted only if `matchId`, `snapshotTurn`,
 request sequence, current turn, and pre-order phase still match. Otherwise the
 response is discarded and the previous Doctrine or heuristic remains active.
+
+The browser exposes an explicit, non-numeric thinking phase while a Doctrine is
+requested, while Saltkin seals its simultaneous orders, and while the Director
+compares candidates. State-changing controls and keyboard shortcuts are locked
+during those phases. Every resolution timer and Director request carries a
+match/turn run token; creating a new ring invalidates the token and clears its
+timers, so a late callback cannot mutate the new match. Tabs remain ordinary UI,
+and the thinking veil does not transform the canvas or alter hit-test geometry.
 
 ## Director candidates and counterfactuals
 

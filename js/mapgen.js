@@ -1,161 +1,180 @@
 /* ============================================================
-   mapgen.js — the ring
-   Cinder sits under the middle of the map, so the centre is deep
-   water and the land is an annulus around its mouth. Two arcs, north
-   and south, are the only ways between the capitals: that is what
-   makes an earthquake through one of them frightening.
+   mapgen.js — the double-route ladder ring
 
-   The ring is scarce on purpose. There is not enough steady ground
-   for both peoples, and the whole game depends on that being true
-   by about turn five.
+   Two broad east/west fronts run north and south of the caldera. Two
+   rotationally mirrored cross-caldera bridges join those fronts. They are
+   cross-connections, not a third capital route: a breakthrough on one front
+   can turn through a bridge and enter the rear of the other front.
 
-   The map is built with 180-degree rotational symmetry about the
-   caldera — tile (x,y) is the twin of (W-1-x, H-1-y). Neither people
-   starts on better ground than the other, and any imbalance in a
-   match is the players' doing or the mountain's.
+   The topology is fixed so every generated map supports that manoeuvre.
+   Elevation, fertility, the Beacon, and harmless outer fringe tiles remain
+   procedural and exactly 180-degree rotationally symmetric.
    ============================================================ */
 CF.mapgen = (function () {
   var U = CF.util;
 
   var W = 14, H = 10;
-  var CX = (W - 1) / 2, CY = (H - 1) / 2;   // 6.5, 4.5 — the caldera
-  var AX = 5.9, AY = 3.9;                   // ring semi-axes
+  var CX = (W - 1) / 2, CY = (H - 1) / 2;
 
   function idx(x, y) { return y * W + x; }
   function twin(i) { return W * H - 1 - i; }
 
   function blankTile() {
-    return { land: false, elev: 0, fert: 0, owner: 0, str: 0, capital: 0, crater: 0, born: 0 };
+    return {
+      land: false, elev: 0, fert: 0, owner: 0, str: 0,
+      capital: 0, crater: 0, born: 0,
+      route: null, bridge: null, relay: null, temporaryBridge: 0,
+      pressureReserved: 0
+    };
   }
 
-  // elliptical radius: 1.0 is the centreline of the ring
-  function ringR(x, y) {
-    var dx = (x - CX) / AX, dy = (y - CY) / AY;
-    return Math.sqrt(dx * dx + dy * dy);
+  function mark(tiles, x, y, route, bridge) {
+    if (x < 0 || x >= W || y < 0 || y >= H) return;
+    var t = tiles[idx(x, y)];
+    t.land = true;
+    if (route) t.route = route;
+    if (bridge) t.bridge = bridge;
   }
 
   function generate(seed) {
     var holder = { seed: seed | 0 };
     var rand = U.rng(holder);
-
     var tiles = new Array(W * H);
-    for (var i = 0; i < W * H; i++) tiles[i] = blankTile();
+    for (var i = 0; i < tiles.length; i++) tiles[i] = blankTile();
 
-    // --- the annulus ------------------------------------------------------
-    // Kept deliberately thin. Land here is young, and generous, and there
-    // is not enough of it for both peoples — which has to be true on the
-    // board by about turn five or the game has no argument in it.
-    var half = 0.215 + rand() * 0.05;
-    for (var y = 0; y < H; y++) {
-      for (var x = 0; x < W; x++) {
-        var r = ringR(x, y);
-        // noise breaks the band into islands, which is the point: a ring
-        // of islands, not a doughnut
-        var n = (U.hash32(x * 7349 + y * 91711 + seed * 13) - 0.5) * 0.22;
-        if (Math.abs(r - 1) + n < half) tiles[idx(x, y)].land = true;
+    // Two two-tile-wide fronts. Width matters: no Relay landing can become a
+    // single invulnerable fortress, and attacks can approach from two sources.
+    for (var x = 1; x <= 12; x++) {
+      mark(tiles, x, 2, 'north');
+      mark(tiles, x, 3, 'north');
+      mark(tiles, x, 6, 'south');
+      mark(tiles, x, 7, 'south');
+    }
+
+    // Capital fans connect each seat to both routes without adding a middle
+    // east/west corridor.
+    for (var y = 3; y <= 6; y++) {
+      mark(tiles, 1, y, y < 5 ? 'north' : 'south');
+      mark(tiles, 2, y, y < 5 ? 'north' : 'south');
+      mark(tiles, 11, y, y < 5 ? 'north' : 'south');
+      mark(tiles, 12, y, y < 5 ? 'north' : 'south');
+    }
+
+    // The two permanent cross-caldera bridges. Each is two tiles wide and the
+    // eastern bridge is the exact rotational twin of the western bridge.
+    [[3, 4, 'west'], [9, 10, 'east']].forEach(function (spec) {
+      for (var bx = spec[0]; bx <= spec[1]; bx++) {
+        mark(tiles, bx, 4, 'cross', spec[2]);
+        mark(tiles, bx, 5, 'cross', spec[2]);
+      }
+    });
+
+    // Procedural fringe creates an island silhouette without changing the
+    // ladder's connectivity. Only the western half decides; twins are copied.
+    for (var fx = 2; fx <= 6; fx++) {
+      if (rand() < 0.42) mark(tiles, fx, 1, 'north');
+      if (rand() < 0.42) mark(tiles, fx, 8, 'south');
+    }
+    for (var fi = 0; fi < W * H / 2; fi++) {
+      var fj = twin(fi);
+      if (tiles[fi].land && !tiles[fj].land) {
+        tiles[fj].land = true;
+        tiles[fj].route = tiles[fi].route === 'north' ? 'south'
+          : tiles[fi].route === 'south' ? 'north' : tiles[fi].route;
       }
     }
 
-    // --- keep the loop closed --------------------------------------------
-    // Trace the centreline so the ring is always walkable both ways round.
-    // Without this, noise can strand a capital and the match is over before
-    // it starts.
-    for (var a = 0; a < Math.PI * 2; a += 0.02) {
-      var tx = Math.round(CX + Math.cos(a) * AX);
-      var ty = Math.round(CY + Math.sin(a) * AY);
-      if (tx >= 0 && tx < W && ty >= 0 && ty < H) tiles[idx(tx, ty)].land = true;
+    // A central two-by-two cooled-lava bridge is reserved for Cinder Pressure.
+    // It starts as water and may open temporarily after prolonged stillness.
+    var pressureBridge = [];
+    for (var px = 6; px <= 7; px++) {
+      for (var py = 4; py <= 5; py++) {
+        var pi = idx(px, py);
+        pressureBridge.push(pi);
+        tiles[pi] = blankTile();
+        tiles[pi].pressureReserved = 1;
+      }
     }
 
-    // --- the mountain's mouth stays open ----------------------------------
-    for (var y2 = 0; y2 < H; y2++)
-      for (var x2 = 0; x2 < W; x2++)
-        if (ringR(x2, y2) < 0.62) { tiles[idx(x2, y2)].land = false; }
-
-    // --- height and soil --------------------------------------------------
-    // The seaward rim is old stone, tall and barren. The caldera side is
-    // young: low, and thick with ash. So the rich ground is the ground you
-    // cannot easily hold, which is the argument the whole game is about.
-    for (var i2 = 0; i2 < W * H; i2++) {
-      var t = tiles[i2];
-      if (!t.land) continue;
-      var px = i2 % W, py = (i2 / W) | 0;
-      var rr = ringR(px, py);
-      var outward = rr - 1;                    // <0 caldera side, >0 seaward
-      var jitter = U.hash32(i2 * 3121 + seed * 71) - 0.5;
-
-      t.elev = U.clamp(Math.round(2 + outward * 5.0 + jitter * 1.2), 1, 3);
-      t.fert = U.clamp(Math.round(0.9 - outward * 5.4 + jitter * 1.3), 0, 3);
-      if (t.elev === 3) t.fert = Math.max(0, t.fert - 1);
+    // Terrain value is mirrored exactly. Caldera-facing ground is fertile;
+    // seaward ground is higher, preserving the original risk/reward tension.
+    for (var ti = 0; ti < W * H / 2; ti++) {
+      var src = tiles[ti], dst = tiles[twin(ti)];
+      if (src.land) {
+        var sy = (ti / W) | 0;
+        var outward = Math.abs(sy - CY) / CY;
+        var jitter = U.hash32(ti * 3121 + seed * 71) - 0.5;
+        src.elev = U.clamp(Math.round(1 + outward * 2.2 + jitter), 1, 3);
+        src.fert = U.clamp(Math.round(2.5 - outward * 1.8 + jitter * 1.4), 0, 3);
+        if (src.elev === 3) src.fert = Math.max(0, src.fert - 1);
+      }
+      dst.land = src.land;
+      dst.elev = src.elev;
+      dst.fert = src.fert;
+      if (!dst.route) {
+        dst.route = src.route === 'north' ? 'south'
+          : src.route === 'south' ? 'north' : src.route;
+      }
     }
 
-    // --- make it exactly fair --------------------------------------------
-    // Copy the western half onto the eastern half, rotated through the
-    // caldera. Every square now has a twin of identical worth.
-    for (var i3 = 0; i3 < W * H / 2; i3++) {
-      var src = tiles[i3], dstIdx = twin(i3);
-      var d = tiles[dstIdx];
-      d.land = src.land; d.elev = src.elev; d.fert = src.fert;
-    }
+    // Relay zones span both rows of a route. Taking one square can weaken a
+    // junction; taking both severs that lane unless another controlled bridge
+    // provides a way around it.
+    var relays = {
+      NW: [idx(4, 2), idx(4, 3)],
+      SW: [idx(4, 6), idx(4, 7)],
+      NE: [idx(9, 2), idx(9, 3)],
+      SE: [idx(9, 6), idx(9, 7)]
+    };
+    Object.keys(relays).forEach(function (name) {
+      relays[name].forEach(function (ri) {
+        tiles[ri].relay = name;
+        tiles[ri].fert = 0;  // a tactical junction, never a bonus income point
+        tiles[ri].elev = 1;  // broad and attackable, not a new hill fortress
+      });
+    });
 
-    // --- capitals ---------------------------------------------------------
-    var capA = bestCapital(tiles);
-    if (capA < 0) return generate((seed + 977) | 0);
-    var capB = twin(capA);
-
+    // Capital seats are fixed by topology and rotationally symmetric.
+    var capA = idx(1, 4), capB = twin(capA);
     seat(tiles, capA, 1);
     seat(tiles, capB, 2);
     seedHome(tiles, capA);
 
-    // --- the Beacon -------------------------------------------------------
-    var beacon = pickBeacon(tiles, capA, capB);
-
-    return { W: W, H: H, tiles: tiles, capitals: { 1: capA, 2: capB },
-             beacon: beacon, seed: seed | 0, rngSeed: holder.seed };
-  }
-
-  // The western seat: on the ring, well out toward the rim, with room to
-  // grow. Its twin becomes the eastern seat, so this one choice fixes both.
-  function bestCapital(tiles) {
-    var best = -1, bestScore = -1e9;
-    for (var y = 0; y < H; y++) {
-      for (var x = 0; x < 5; x++) {
-        var i = idx(x, y), t = tiles[i];
-        if (!t.land) continue;
-        var room = 0, ns = neighbors(i);
-        for (var k = 0; k < ns.length; k++) if (tiles[ns[k]].land) room++;
-        if (room < 2) continue;                       // no dead-end capitals
-        var score = room * 3 + t.elev + (4 - x) * 2;
-        if (score > bestScore) { bestScore = score; best = i; }
-      }
-    }
-    return best;
+    // One shared opening objective breaks strategic mirror-play without
+    // favouring a capital: both sides are the same distance from the chosen
+    // route and its Beacon. The other route remains the flank.
+    var openingFocus = U.hash32(seed * 65537 + 911) < 0.5 ? 'NORTH' : 'SOUTH';
+    var beacon = pickBeacon(tiles, capA, capB, seed, openingFocus);
+    return {
+      W: W, H: H, tiles: tiles,
+      capitals: { 1: capA, 2: capB },
+      beacon: beacon, relays: relays, pressureBridge: pressureBridge,
+      openingFocus: openingFocus,
+      seed: seed | 0, rngSeed: holder.seed
+    };
   }
 
   function seat(tiles, i, owner) {
     var t = tiles[i];
-    t.land = true; t.owner = owner; t.capital = owner;
-    t.elev = 3; t.fert = 2; t.str = 6;
+    t.land = true;
+    t.owner = owner;
+    t.capital = owner;
+    t.elev = 3;
+    t.fert = 2;
+    t.str = 6;
   }
 
-  // Two fields each. Only the western side chooses — the eastern side is
-  // handed the exact twins. Choosing independently looks equivalent but is
-  // not: rotation reverses index order, so on a tie the two sides picked
-  // different squares, and that ~1 tile of asymmetry per map was enough to
-  // skew several hundred simulated matches badly.
   function seedHome(tiles, cap) {
-    var ns = neighbors(cap).filter(function (n) { return tiles[n].land && tiles[n].owner === 0; });
-    ns.sort(function (a, b) { return tiles[b].fert - tiles[a].fert || a - b; });
-    for (var k = 0; k < ns.length && k < 2; k++) {
-      var i = ns[k], j = twin(i);
-      if (tiles[j].owner !== 0 || !tiles[j].land) continue;   // never overwrite a capital
-      tiles[i].owner = 1; tiles[i].str = 2;
-      tiles[j].owner = 2; tiles[j].str = 2;
-    }
+    // One foothold toward each front. The eastern starts are exact twins.
+    [idx(1, 3), idx(1, 5)].forEach(function (i) {
+      var j = twin(i);
+      tiles[i].owner = 1;
+      tiles[i].str = 2;
+      tiles[j].owner = 2;
+      tiles[j].str = 2;
+    });
   }
 
-  // The fire wants open ground the same distance from both peoples. On a
-  // ring, straight-line distance lies — the sea is in the way — so this
-  // walks the actual land to find the midpoint of an arc.
   function walkDistances(tiles, from) {
     var d = new Int16Array(W * H).fill(-1);
     var q = [from];
@@ -172,17 +191,21 @@ CF.mapgen = (function () {
     return d;
   }
 
-  function pickBeacon(tiles, capA, capB) {
+  function pickBeacon(tiles, capA, capB, seed, openingFocus) {
     var da = walkDistances(tiles, capA), db = walkDistances(tiles, capB);
-    var best = -1, bestScore = -1e9;
-    for (var i = 0; i < W * H; i++) {
+    var bestScore = -Infinity, choices = [];
+    for (var i = 0; i < tiles.length; i++) {
       var t = tiles[i];
-      if (!t.land || t.owner !== 0 || da[i] < 0 || db[i] < 0) continue;
-      // dead level between them, and as far from both as the ring allows
-      var score = -Math.abs(da[i] - db[i]) * 10 + Math.min(da[i], db[i]) * 2 - t.fert;
-      if (score > bestScore) { bestScore = score; best = i; }
+      if (!t.land || t.owner || t.relay || da[i] < 0 || db[i] < 0) continue;
+      var lane = t.route === 'north' ? 'NORTH' : t.route === 'south' ? 'SOUTH'
+        : ((i / W) | 0) < H / 2 ? 'NORTH' : 'SOUTH';
+      if (lane !== openingFocus) continue;
+      var score = -Math.abs(da[i] - db[i]) * 20 + Math.min(da[i], db[i]) * 3 - t.fert;
+      if (score > bestScore) { bestScore = score; choices = [i]; }
+      else if (score === bestScore) choices.push(i);
     }
-    return best >= 0 ? best : idx(W >> 1, 0);
+    if (!choices.length) return idx(6, openingFocus === 'NORTH' ? 2 : 7);
+    return choices[Math.floor(U.hash32(seed * 104729) * choices.length)];
   }
 
   function neighbors(i) {
@@ -194,5 +217,8 @@ CF.mapgen = (function () {
     return out;
   }
 
-  return { W: W, H: H, generate: generate, neighbors: neighbors, idx: idx, twin: twin };
+  return {
+    W: W, H: H, generate: generate, neighbors: neighbors,
+    idx: idx, twin: twin
+  };
 })();

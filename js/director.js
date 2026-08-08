@@ -39,6 +39,7 @@ CF.director = (function () {
     for (var i = st.length - 1; i >= 0; i--) { if (st[i].raids > 0) break; r.quiet++; }
 
     r.beaconOwner = state.tiles[state.beacon].owner;
+    r.beaconSupplied = !r.beaconOwner || state.supply[state.beacon] === r.beaconOwner;
     r.beaconStill = 0;
     for (var j = st.length - 1; j >= 0; j--) {
       if (j < st.length - 1 && st[j].beacon !== st[st.length - 1].beacon) break;
@@ -74,6 +75,17 @@ CF.director = (function () {
       if (tt.land && (tt.owner === 1 || tt.owner === 2) && state.supply[m] !== tt.owner) cut++;
     }
     r.cutOff = cut;
+    r.pressure = state.pressure ? state.pressure.staleTurns : 0;
+    r.pressureBridgeTurns = state.pressure ? state.pressure.bridgeTurns : 0;
+    r.relayControl = { ashfarers: 0, saltkin: 0, open: 0 };
+    Object.keys(state.relays || {}).forEach(function (relay) {
+      (state.relays[relay] || []).forEach(function (ri) {
+        var owner = state.tiles[ri].owner;
+        if (owner === 1) r.relayControl.ashfarers++;
+        else if (owner === 2) r.relayControl.saltkin++;
+        else r.relayControl.open++;
+      });
+    });
 
     return r;
   }
@@ -88,9 +100,15 @@ CF.director = (function () {
       : 'Fighting is running at about ' + r.raidsPerTurn.toFixed(1) + ' raids a turn.');
     if (r.stacking >= 4) lines.push('Both sides are stacking defence on high ground (average ' + r.stacking.toFixed(1) + ').');
     lines.push(r.beaconOwner
-      ? 'The Beacon is held by the ' + E.SIDE[r.beaconOwner] + ' and has not changed hands in ' + U.plural(r.beaconStill, 'turn') + '.'
+      ? 'The Beacon is held by the ' + E.SIDE[r.beaconOwner] +
+        (r.beaconSupplied ? '' : ' but is cut off and cannot score') +
+        ' and has not changed hands in ' + U.plural(r.beaconStill, 'turn') + '.'
       : 'The Beacon stands in open ground, unclaimed.');
     if (r.cutOff) lines.push(U.plural(r.cutOff, 'square') + ' are cut off from a capital.');
+    lines.push('Supply Relay squares: ' + r.relayControl.ashfarers + ' Ashfarer, ' +
+      r.relayControl.saltkin + ' Saltkin, ' + r.relayControl.open + ' open.');
+    if (r.pressure >= 2) lines.push('Cinder Pressure has reached ' + r.pressure +
+      ' still turns' + (r.pressureBridgeTurns ? '; the central crossing remains open for ' + r.pressureBridgeTurns + ' turns.' : '.'));
     lines.push(r.emptyLand + ' squares of land belong to nobody.');
 
     var last = state.chronicle[state.chronicle.length - 1];

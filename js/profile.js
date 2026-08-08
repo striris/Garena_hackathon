@@ -106,6 +106,17 @@ CF.profile = (function () {
   function requestPayload(state, matchId) {
     var memory = load();
     var profile = build(state, memory);
+    var relayControl = {};
+    Object.keys(state.relays || {}).forEach(function (name) {
+      var counts = { ashfarers: 0, saltkin: 0, open: 0 };
+      state.relays[name].forEach(function (i) {
+        var owner = state.tiles[i].owner;
+        if (owner === 1) counts.ashfarers++;
+        else if (owner === 2) counts.saltkin++;
+        else counts.open++;
+      });
+      relayControl[name] = counts;
+    });
     return {
       matchId: matchId,
       snapshotTurn: state.turn,
@@ -116,8 +127,28 @@ CF.profile = (function () {
         turn: state.turn,
         land: { ashfarers: E.landCount(state, 1), saltkin: E.landCount(state, 2) },
         income: { ashfarers: E.income(state, 1), saltkin: E.income(state, 2) },
+        reserve: {
+          ashfarers: state.reserve && state.reserve[1] || 0,
+          saltkin: state.reserve && state.reserve[2] || 0
+        },
+        availableBudget: {
+          ashfarers: E.availableBudget(state, 1),
+          saltkin: E.availableBudget(state, 2)
+        },
         beaconPoints: { ashfarers: state.bp[1], saltkin: state.bp[2] },
         beaconOwner: state.tiles[state.beacon].owner,
+        beaconSupplied: !state.tiles[state.beacon].owner ||
+          state.supply[state.beacon] === state.tiles[state.beacon].owner,
+        fieldCommandsPerTurn: E.FIELD_COMMANDS,
+        secondCommandMobilizationCost: E.MOBILIZATION_COST,
+        operationSupportCost: E.SUPPORT_COST,
+        openingFocus: state.opening ? state.opening.route : null,
+        mainEffort: state.strategy && state.strategy[2] ? state.strategy[2] : null,
+        relayControl: relayControl,
+        cinderPressure: state.pressure ? {
+          staleTurns: state.pressure.staleTurns,
+          bridgeTurns: state.pressure.bridgeTurns
+        } : { staleTurns: 0, bridgeTurns: 0 },
         warnedEvent: state.pending ? {
           template: state.pending.template,
           region: state.pending.region,

@@ -6,6 +6,7 @@ CF.render = (function () {
   var U = CF.util, E = CF.engine, EV = CF.events, T = CF.theme;
 
   var cv, ctx, dpr = 1;
+  var resizeObserver = null, resizeFrame = 0;
   var state = null;
   var geom = { ts: 40, ox: 0, oy: 0, w: 0, h: 0 };
 
@@ -15,6 +16,8 @@ CF.render = (function () {
   var rifts = [];
   var hover = -1;
   var previewOrders = [];
+  var legalTargets = [];
+  var legalType = 'expand';
   var shake = 0, shakeT = 0;
   var t0 = performance.now();
 
@@ -31,18 +34,41 @@ CF.render = (function () {
     ctx = cv.getContext('2d');
     T.startLoad().catch(function () {});
     resize();
-    window.addEventListener('resize', resize);
+    window.addEventListener('resize', queueResize);
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(queueResize);
+      resizeObserver.observe(cv);
+    }
     requestAnimationFrame(loop);
+  }
+
+  function queueResize() {
+    if (resizeFrame) return;
+    resizeFrame = requestAnimationFrame(function () {
+      resizeFrame = 0;
+      resize();
+    });
   }
 
   function resize() {
     if (!cv) return;
-    var r = cv.parentNode.getBoundingClientRect();
+    // clientWidth/clientHeight describe the canvas' untransformed CSS box.
+    // The old parent rect included its decorative border and became stale
+    // whenever a flex sibling (such as the event warning) changed size.
+    var width = cv.clientWidth;
+    var height = cv.clientHeight;
+    if (!width || !height) {
+      var r = cv.getBoundingClientRect();
+      width = r.width;
+      height = r.height;
+    }
     dpr = Math.min(window.devicePixelRatio || 1, 2);
-    cv.width = Math.floor(r.width * dpr);
-    cv.height = Math.floor(r.height * dpr);
-    geom.w = r.width;
-    geom.h = r.height;
+    var pixelWidth = Math.max(1, Math.floor(width * dpr));
+    var pixelHeight = Math.max(1, Math.floor(height * dpr));
+    if (cv.width !== pixelWidth) cv.width = pixelWidth;
+    if (cv.height !== pixelHeight) cv.height = pixelHeight;
+    geom.w = width;
+    geom.h = height;
     layout();
   }
 
@@ -50,7 +76,10 @@ CF.render = (function () {
     if (!state) return;
     var pad = 22;
     var ts = Math.floor(Math.min((geom.w - pad * 2) / state.W, (geom.h - pad * 2) / state.H));
-    geom.ts = Math.max(24, ts);
+    // Compact landscape screens need a smaller floor to keep the entire
+    // ladder visible. Hit testing reads this same geometry, so shrinking a
+    // tile never introduces the pointer offset caused by CSS transforms.
+    geom.ts = Math.max(geom.h < 300 ? 18 : 24, ts);
     geom.ox = Math.floor((geom.w - geom.ts * state.W) / 2);
     geom.oy = Math.floor((geom.h - geom.ts * state.H) / 2);
   }
@@ -58,6 +87,7 @@ CF.render = (function () {
   function setState(s) { state = s; layout(); }
   function setHover(i) { hover = i; }
   function setPreview(list) { previewOrders = list || []; }
+  function setLegalTargets(list, type) { legalTargets = list || []; legalType = type || 'expand'; }
 
   function tileAt(px, py) {
     if (!state) return -1;
@@ -65,6 +95,18 @@ CF.render = (function () {
     var y = Math.floor((py - geom.oy) / geom.ts);
     if (x < 0 || y < 0 || x >= state.W || y >= state.H) return -1;
     return y * state.W + x;
+  }
+
+  function pointFromClient(clientX, clientY) {
+    if (!cv) return { x: -1, y: -1 };
+    var r = cv.getBoundingClientRect();
+    if (!r.width || !r.height) return { x: -1, y: -1 };
+    // getBoundingClientRect includes any visual CSS scaling. Convert back to
+    // the coordinate system used by geom so hit testing remains exact.
+    return {
+      x: (clientX - r.left) * geom.w / r.width,
+      y: (clientY - r.top) * geom.h / r.height
+    };
   }
 
   function tileRect(i) {
@@ -110,14 +152,32 @@ CF.render = (function () {
           ring(f.at, sideColor(f.side), 1.8, 520);
           if (f.from != null) tracer(f.from, f.at, sideColor(f.side));
           break;
+        case 'synergy':
+          flash(f.at, '#fff0a8', 850);
+          ring(f.at, '#fff0a8', 2.8, 900);
+          (f.sources || []).forEach(function (from) { tracer(from, f.at, sideColor(f.side)); });
+          break;
+        case 'pressure':
+          flash(f.at, '#ff9b62', 500);
+          burst(f.at, '#ff9b62', 8, 1.2);
+          break;
         case 'repel':
           flash(f.at, '#ffffff', 260);
           burst(f.at, '#f1ead6', 10, 1.2);
           if (f.from != null) tracer(f.from, f.at, '#fff6d4');
           break;
+        case 'invalid':
+          flash(f.at, '#ff5f52', 420);
+          ring(f.at, '#ff7b68', 2.2, 440);
+          break;
         case 'settle':
           flash(f.at, sideColor(f.side), 520);
           ring(f.at, sideColor(f.side), 1.3, 420);
+          break;
+        case 'surge':
+          flash(f.at, sideColor(f.side), 760);
+          burst(f.at, sideColor(f.side), 18, 2.0);
+          ring(f.at, '#fff0a8', 2.0, 620);
           break;
         case 'settle3':
           flash(f.at, sideColor(3), 700);
@@ -286,6 +346,7 @@ CF.render = (function () {
     drawTerritoryEdges();
     drawRifts(now);
     drawBeacon(t);
+    drawLegalTargets(t);
     drawOrders(t);
     drawHover();
     drawRings(now);
@@ -364,6 +425,7 @@ CF.render = (function () {
       drawTileDeco(r, tile, seed);
       drawTileSprite(r, tile);
       drawTileStrength(r, tile);
+      drawTileOverlay(r, tile);
       drawTileFlash(r, i, now);
     }
   }
@@ -461,6 +523,37 @@ CF.render = (function () {
     }
     if (tile.owner === 0 && seed % 5 === 0) {
       drawAnchoredImage(T.image(T.decoKey(seed)), r.x + r.s * 0.14, r.y + r.s * 0.28, r.s * 0.52, r.s * 0.52);
+    }
+
+  }
+
+  function drawTileOverlay(r, tile) {
+    if (tile.relay) {
+      ctx.save();
+      var cx = r.x + r.s * 0.5, cy = r.y + r.s * 0.72, rr = r.s * 0.16;
+      ctx.translate(cx, cy);
+      ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = 'rgba(24,20,18,0.82)';
+      ctx.strokeStyle = '#ffe08a';
+      ctx.lineWidth = Math.max(1.5, r.s * 0.045);
+      ctx.fillRect(-rr, -rr, rr * 2, rr * 2);
+      ctx.strokeRect(-rr, -rr, rr * 2, rr * 2);
+      ctx.rotate(-Math.PI / 4);
+      ctx.fillStyle = '#fff4bf';
+      ctx.font = 'bold ' + Math.max(8, Math.floor(r.s * 0.22)) + 'px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('R', 0, 0.5);
+      ctx.restore();
+    }
+
+    if (tile.temporaryBridge) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,123,62,0.9)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([3, 3]);
+      ctx.strokeRect(r.x + 4, r.y + 4, r.s - 8, r.s - 8);
+      ctx.restore();
     }
   }
 
@@ -609,6 +702,10 @@ CF.render = (function () {
     var i = state.beacon;
     if (i == null || !state.tiles[i]) return;
     var c = tileCentre(i), ts = geom.ts;
+    var owner = state.tiles[i].owner;
+    var supplied = !owner || owner === 3 || state.supply[i] === owner;
+    ctx.save();
+    if (!supplied) ctx.globalAlpha = 0.34;
     var pulse = 0.5 + 0.5 * Math.sin(t * 2.1);
     var tower = T.image('tower');
     if (tower) drawAnchoredImage(tower, c.x - ts * 0.7, c.y - ts * 1.55, ts * 1.4, ts * 1.7);
@@ -651,6 +748,33 @@ CF.render = (function () {
         g: 0, life: 1, decay: 0.011, size: 1.3, color: T.palette.beacon
       });
     }
+    ctx.restore();
+  }
+
+  function drawLegalTargets(t) {
+    var pulse = 0.55 + Math.sin(t * 3.2) * 0.18;
+    legalTargets.forEach(function (target) {
+      var index = typeof target === 'number' ? target : target.i;
+      var special = typeof target === 'object' && target.special;
+      var r = tileRect(index);
+      var color = legalType === 'raid' ? '#ff7159' : legalType === 'fortify' ? '#79bdf7' : sideColor(1);
+      if (special) color = '#ffe487';
+      ctx.save();
+      ctx.globalAlpha = pulse;
+      ctx.strokeStyle = color;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = special ? 16 : 9;
+      ctx.lineWidth = special ? 3 : 1.8;
+      if (legalType === 'fortify') {
+        ctx.beginPath();
+        ctx.arc(r.x + r.s / 2, r.y + r.s / 2, r.s * .42, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        var inset = special ? 1 : 5;
+        ctx.strokeRect(r.x + inset, r.y + inset, r.s - inset * 2, r.s - inset * 2);
+      }
+      ctx.restore();
+    });
   }
 
   function drawOrders(t) {
@@ -801,9 +925,11 @@ CF.render = (function () {
     setState: setState,
     push: push,
     tileAt: tileAt,
+    pointFromClient: pointFromClient,
     tileRect: tileRect,
     setHover: setHover,
     setPreview: setPreview,
+    setLegalTargets: setLegalTargets,
     resize: resize,
     sideColor: sideColor,
     geom: geom

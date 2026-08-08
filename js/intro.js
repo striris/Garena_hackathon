@@ -20,6 +20,8 @@ CF.intro = (function () {
   var waves = [];
   var nextErupt = 4.2;
   var erupt = -99;
+  var scene = 0;
+  var sceneTime = 0;
 
   var GW = 26, GH = 17;          // virtual grid for the hero ring
 
@@ -92,6 +94,7 @@ CF.intro = (function () {
 
   function draw(t) {
     if (!ctx || !w) return;
+    sceneTime = t;
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, w, h);
@@ -102,7 +105,8 @@ CF.intro = (function () {
 
     // the border between the two peoples grinds back and forth: neither
     // of them is winning, which is exactly the problem
-    var push = Math.sin(t * 0.42) * 0.30 + Math.sin(t * 0.17 + 1.3) * 0.16;
+    var sceneDrive = scene === 4 ? 1.55 : scene === 3 ? 1.25 : 1;
+    var push = (Math.sin(t * 0.42) * 0.30 + Math.sin(t * 0.17 + 1.3) * 0.16) * sceneDrive;
 
     // an eruption every few seconds, so the ring never looks settled
     if (t > nextErupt) { erupt = t; nextErupt = t + 7 + Math.random() * 5; }
@@ -412,5 +416,17 @@ CF.intro = (function () {
     return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
   }
 
-  return { init: init, start: start, stop: stop, resize: resize };
+  function setScene(next) {
+    next = Math.max(0, Math.min(5, Number(next) || 0));
+    if (next === scene) return;
+    scene = next;
+    // The final lesson is about Cinder. Give that page an immediate, purely
+    // visual breath instead of making the player wait for the ambient cycle.
+    if (scene === 5) {
+      erupt = sceneTime;
+      nextErupt = sceneTime + 8;
+    }
+  }
+
+  return { init: init, start: start, stop: stop, resize: resize, setScene: setScene };
 })();

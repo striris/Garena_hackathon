@@ -1,11 +1,23 @@
 # CINDERFALL 双 AI 决策系统实施计划
 
-## Implementation status — 2026-08-05
+## Implementation status — 2026-08-08
 
 已实现：Python 同源服务、指定 Chat Completions 兼容接口、两个 Prompt 与
 Schema、Saltkin 玩家画像/五局记忆/Doctrine 生命周期、Director 候选枚举与
 三回合反事实模拟、40% 选择空间限制、shadow baseline、实时安全复核与多级
 fallback、审计 UI、故障模拟、离线/服务测试及文档披露。
+
+### 地图与规则修正版：双线梯环
+
+已将噪声分岔环替换为固定拓扑、程序化地形的双线梯环：保留两格宽的
+南北路线，加入两座互为 180° 旋转镜像的跨火山口横桥，并在四个桥头设置
+共八格可见 Supply Relay。同步实现每回合两枚统一战场指令（Expand/Raid/
+Fortify 共用）、双方三回合 MAIN EFFORT、到期换线的重新部署成本、同线连续
+Expand、第二枚指令 2 点动员费、未用收入 2:1 转换且上限 6 的 Supply
+Reserve、2 费行军/攻城 Operation Support、双方等距的四回合 Ash Surge
+开局目标、双来源 Raid +2、Fortify 2 费/+1/上限 6/每格一次/断供禁用、
+Beacon 断供不计分，以及三回合僵持衰减和临时横桥组成的 Cinder Pressure。
+LLM 只读取这些公开状态并调整目标，不能绕过任何确定性规则。
 
 未使用对话中暴露的 Key，也未执行会产生费用的在线评估。请先撤销该 Key，
 将新 Key 放入被忽略的 `.env`，再运行：
@@ -59,7 +71,7 @@ flowchart LR
 - 使用至少两个回合后，如发生世界事件、净失地达到三格或 Beacon 易主，可提前重新规划。
 - 每回合最多请求一次；迟到响应必须校验 `matchId` 和 `snapshotTurn`。
 - Saltkin 永远不能读取玩家本回合尚未提交的订单。
-- Doctrine 尚未返回时继续使用上一份；三秒超时后使用现有启发式策略。
+- Doctrine 尚未返回时继续使用上一份；真实 API 默认十五秒超时后使用现有启发式策略。
 
 ### Structured Output
 
@@ -89,7 +101,7 @@ flowchart LR
 每季基于已结算状态：
 
 1. 枚举事件模板、强度和区域组合。
-2. 使用现有 validator 剔除无效、破坏首都、过度伤害、切断环岛或连续针对同一方的候选。
+2. 使用现有 validator 剔除无效、破坏首都、过度伤害、切断全部梯环路线或连续针对同一方的候选。
 3. 对相同地图结果去重，通过状态差异采样保留最多十个多样化候选，避免启发式规则预先替 Director 做决定。
 4. 对每个候选运行三个回合的确定性反事实模拟：
    - 玩家继续当前画像战术；
@@ -153,6 +165,8 @@ flowchart LR
 - API Key 使用 `CINDERFALL_API_KEY`，不得写入源码、`.env.example`、浏览器代码、日志或提交记录。
 - 每次响应记录 `source`、`model`、`latencyMs`、`requestId` 和标准化决策，不记录 API Key。
 - 玩家界面仅显示 Saltkin 的姿态和意图，以及 Cinder 的预警、解释与结果。
+- 新手教程拆成六个可重播的动画场景，逐项演示双线梯环、收入与指令、主攻锁定、协同 Raid、Relay 断供和世界事件；紧凑屏幕中的导航固定在滚动内容之外。
+- Saltkin 或 Director 请求期间显示不同的主题等待层并冻结全部状态修改操作；回合级 token 会使新地图自动废弃旧计时器和迟到回调，等待层不缩放 Canvas。
 - 设计师审计台显示完整 Doctrine、玩家画像、Director 候选模拟、证据、护栏、预测评分和 LLM/启发式来源。
 - 将 “Reasoning” 更名为 “Decision Evidence”，不请求或展示模型内部思维链。
 - 同时运行原启发式作为 shadow baseline，显示“规则原本会选择什么”，但不影响实际决定。
@@ -177,4 +191,4 @@ flowchart LR
   - 一次安全验证拒绝；
   - 一次 API 故障显式 fallback。
 
-默认采用本地 Python 服务、三秒超时、实时 API 调用和分层信息展示，不加入多人游戏、多供应商适配或 LLM 逐格操作。
+默认采用本地 Python 服务、十五秒真实 API 超时、三秒故障演示、实时 API 调用和分层信息展示，不加入多人游戏、多供应商适配或 LLM 逐格操作。

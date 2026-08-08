@@ -11,6 +11,39 @@ CF.bot = (function () {
 
   var MOODS = ['aggressive', 'greedy', 'turtle'];
 
+  function laneOf(state, i) {
+    return E.laneOf(state, i);
+  }
+
+  function chooseEffort(state, side, doctrine) {
+    var locked = state.strategy && state.strategy[side];
+    if (locked && locked.untilTurn >= state.turn) return locked;
+
+    var requested = doctrine && (doctrine.target_region === 'NORTH' || doctrine.target_region === 'SOUTH')
+      ? doctrine.target_region : null;
+    var score = { NORTH: 0, SOUTH: 0 };
+    var foe = side === 1 ? 2 : 1;
+    for (var i = 0; i < state.tiles.length; i++) {
+      var t = state.tiles[i];
+      if (!t.land) continue;
+      var lane = laneOf(state, i);
+      if (t.owner === foe) score[lane] += 2 + t.fert + (t.relay ? 6 : 0) + (i === state.beacon ? 8 : 0);
+      if (t.owner === side && t.relay) score[lane] += 2;
+    }
+    if (state.opening && state.turn <= state.opening.untilTurn)
+      score[state.opening.route] += 40;
+    if (requested) score[requested] += 20;
+    var main = score.NORTH === score.SOUTH
+      ? (U.hash32(state.seed + side * 7919 + Math.floor((state.turn - 1) / 3) * 104729) < 0.5 ? 'NORTH' : 'SOUTH')
+      : (score.NORTH > score.SOUTH ? 'NORTH' : 'SOUTH');
+    return {
+      main: main,
+      secondary: main === 'NORTH' ? 'HOLD SOUTH' : 'HOLD NORTH',
+      issuedTurn: state.turn,
+      untilTurn: state.turn + 2
+    };
+  }
+
   function chooseMood(state, side, forceTurtle) {
     if (forceTurtle) return 'turtle';
 
@@ -75,8 +108,13 @@ CF.bot = (function () {
     }
     var taste = TASTE[side] || TASTE[1];
     var foe = side === 1 ? 2 : 1;
-    var budget = E.income(state, side);
+    var budget = E.availableBudget(state, side);
     var cands = [];
+    var effort = chooseEffort(state, side, doctrine);
+
+    function effortPull(i) {
+      return laneOf(state, i) === effort.main ? 12 : -2;
+    }
 
     var bx = state.beacon % state.W, by = (state.beacon / state.W) | 0;
     function beaconPull(i) {
@@ -105,11 +143,13 @@ CF.bot = (function () {
         if (nt.land && nt.owner === foe) threat = Math.max(threat, nt.str + 3);
       }
       var ft = state.tiles[from];
-      if (threat > 0 || from === state.beacon) {
+      if (laneOf(state, from) === effort.main &&
+          (threat > 0 || from === state.beacon) && E.canFortify(state, side, from) != null) {
         var gap = threat - E.defenceValue(state, from);
         cands.push({
           type: 'fortify', to: from,
-          score: (6 + Math.max(0, gap) * 2.2 + (from === state.beacon ? 9 : 0) + ft.fert + regionPull(from)) * w.fortify
+          score: (6 + Math.max(0, gap) * 2.2 + (from === state.beacon ? 9 : 0) + ft.fert +
+                  regionPull(from) + effortPull(from)) * w.fortify
         });
       }
 
@@ -118,29 +158,46 @@ CF.bot = (function () {
         if (!t.land) continue;
 
         // --- expand -----------------------------------------------------
-        if (t.owner === 0 && !seenExpand[i]) {
+        if (laneOf(state, i) === effort.main && t.owner === 0 && !seenExpand[i]) {
           seenExpand[i] = 1;
           cands.push({
             type: 'expand', to: i,
             score: (4 + t.fert * taste.soil + t.elev * taste.height + beaconPull(i) +
-                    (i === state.beacon ? 12 : 0) + regionPull(i)) * w.expand
+                    (i === state.beacon ? 12 : 0) + (t.relay ? 10 : 0) + regionPull(i)) * w.expand
           });
         }
 
         // --- raid, or the build-up toward one ---------------------------
-        if (t.owner === foe || t.owner === 3) {
+        if (laneOf(state, i) === effort.main && (t.owner === foe || t.owner === 3)) {
           var def = E.defenceValue(state, i);
           var prize = t.fert * taste.soil * 0.6 + t.elev * taste.height * 0.6
                     + beaconPull(i) + (i === state.beacon ? 16 : 0)
-                    + (t.capital ? 30 : 0) - (t.owner === 3 ? 4 : 0);
+                    + (t.capital ? 30 : 0) + (t.relay ? 24 : 0)
+                    - (t.owner === 3 ? 4 : 0);
 
           if (!seenRaid[i]) {
             seenRaid[i] = 1;
-            var src = E.canRaid(state, side, i);
+            var sources = E.raidSources(state, side, i);
+            var src = sources.length ? sources[0] : null;
             if (src != null) {
               var margin = E.attackValue(state, src, side) - def;
               // never throw squares away on an attack that cannot land
-              if (margin > 0) cands.push({ type: 'raid', to: i, score: (7 + margin * 1.5 + prize + regionPull(i)) * w.raid });
+              if (margin > 0) cands.push({
+                type: 'raid', from: src, to: i,
+                score: (7 + margin * 1.5 + prize + regionPull(i) + effortPull(i)) * w.raid
+              });
+            }
+
+            var supplied = sources.filter(function (source) { return state.supply[source] === side; });
+            if (supplied.length >= 2) {
+              var pair = supplied.slice(0, 2);
+              var pairMargin = E.coordinatedAttackValue(state, pair, side) - def;
+              var canFundSiege = budget >= E.raidCost(state) * 2 + E.MOBILIZATION_COST + E.SUPPORT_COST;
+              var fundedMargin = pairMargin + (canFundSiege ? E.SIEGE_SUPPORT_BONUS : 0);
+              if (fundedMargin > 0) cands.push({
+                type: 'raid_pair', from: pair, to: i,
+                score: (15 + fundedMargin * 2 + prize * 1.35 + regionPull(i) + effortPull(i) * 1.5) * w.raid
+              });
             }
           }
 
@@ -149,48 +206,122 @@ CF.bot = (function () {
           // this the rival stares at a wall forever and the border never
           // moves again — a stalemate nobody chose and nobody can end.
           var deficit = def - (ft.str + 3 + E.stormSwing(state, side));
-          if (deficit >= 0 && deficit < 7) {
+          if (deficit >= 0 && deficit < 7 && E.canFortify(state, side, from) != null) {
             cands.push({ type: 'fortify', to: from, score: (12 + prize - deficit * 1.5 + regionPull(from)) * w.siege });
           }
         }
       }
     }
 
+    // A concentrated pair of Expand orders can move two squares deep. This is
+    // the opening-tempo reward for committing both commands to one route.
+    cands.filter(function (o) { return o.type === 'expand'; }).forEach(function (first) {
+      E.neighbors(state, first.to).forEach(function (to) {
+        var t = state.tiles[to];
+        if (!t.land || t.owner !== 0 || laneOf(state, to) !== effort.main) return;
+        if (E.canExpand(state, side, to) != null) return; // already a direct option
+        if (E.canExpand(state, side, to, [{ type: 'expand', to: first.to }]) !== first.to) return;
+        var value = 6 + t.fert * taste.soil + t.elev * taste.height + beaconPull(to) +
+          (to === state.beacon ? 14 : 0) + (t.relay ? 12 : 0) + regionPull(to);
+        cands.push({
+          type: 'expand_chain', first: first.to, to: to,
+          score: first.score + value * w.expand + 14
+        });
+      });
+    });
+
     cands.sort(function (p, q) { return q.score - p.score; });
 
-    // greedy spend, with a cap on stacking the same square twice
-    var orders = [], spent = 0, fortCount = {};
+    // Expand, Raid, and Fortify all draw from the same two field commands.
+    // Paired raids and chained expansion deliberately consume both.
+    var orders = [], spent = 0, field = 0, fortified = {}, expandedTo = {}, raidSourcesUsed = {};
     for (var c = 0; c < cands.length; c++) {
       var o = cands[c];
-      var cost = E.costOf(state, o.type);
-      if (spent + cost > budget) continue;
-      if (o.type === 'fortify') {
-        fortCount[o.to] = (fortCount[o.to] || 0) + 1;
-        if (fortCount[o.to] > 2) continue;
+      var trial, trialCost;
+      if (o.type === 'raid_pair') {
+        if (field > 0) continue;
+        trial = orders.concat([
+          { type: 'raid', from: o.from[0], to: o.to },
+          { type: 'raid', from: o.from[1], to: o.to }
+        ]);
+        trialCost = E.planCost(state, side, trial, false);
+        if (!trialCost.ok || trialCost.total > budget) continue;
+        orders = trial;
+        field = trialCost.commands;
+        spent = trialCost.total;
+        raidSourcesUsed[o.to] = o.from.slice();
+        continue;
       }
-      orders.push({ type: o.type, to: o.to });
-      spent += cost;
+      if (o.type === 'expand_chain') {
+        if (field > 0 || expandedTo[o.first] || expandedTo[o.to]) continue;
+        trial = orders.concat([
+          { type: 'expand', to: o.first },
+          { type: 'expand', from: o.first, to: o.to }
+        ]);
+        trialCost = E.planCost(state, side, trial, false);
+        if (!trialCost.ok || trialCost.total > budget) continue;
+        orders = trial;
+        field = trialCost.commands;
+        expandedTo[o.first] = expandedTo[o.to] = true;
+        spent = trialCost.total;
+        continue;
+      }
+      if (o.type === 'fortify') {
+        if (fortified[o.to]) continue;
+      }
+      if (o.type === 'raid') {
+        var used = raidSourcesUsed[o.to] || [];
+        if (used.indexOf(o.from) >= 0) continue;
+      }
+      if (o.type === 'expand' && expandedTo[o.to]) continue;
+      trial = orders.concat([{ type: o.type, from: o.from, to: o.to }]);
+      trialCost = E.planCost(state, side, trial, false);
+      if (!trialCost.ok || trialCost.total > budget) continue;
+      orders = trial;
+      field = trialCost.commands;
+      if (o.type === 'fortify') fortified[o.to] = true;
+      if (o.type === 'raid') (raidSourcesUsed[o.to] || (raidSourcesUsed[o.to] = [])).push(o.from);
+      if (o.type === 'expand') expandedTo[o.to] = true;
+      spent = trialCost.total;
+      if (field >= E.FIELD_COMMANDS) break;
     }
 
-    // A turtle with money left over digs in rather than sitting on it, but
-    // the same two-per-square cap applies. Without it a turtle stacks one
-    // hill out of reach forever and the match never restarts.
-    if (mood === 'turtle' && budget - spent >= 1) {
+    // A turtle may spend a remaining command, but never twice on one square,
+    // never while cut off, and never above the global strength cap.
+    if (mood === 'turtle' && field < E.FIELD_COMMANDS && budget - spent >= E.COST.fortify) {
       var stack = mine.slice().sort(function (p, q) {
         return (state.tiles[q].fert + state.tiles[q].elev) - (state.tiles[p].fert + state.tiles[p].elev);
       });
-      for (var si = 0; si < stack.length && budget - spent >= 1; si++) {
+      for (var si = 0; si < stack.length && field < E.FIELD_COMMANDS && budget - spent >= E.COST.fortify; si++) {
         var to = stack[si];
-        while (budget - spent >= 1 && (fortCount[to] || 0) < 2) {
-          orders.push({ type: 'fortify', to: to });
-          fortCount[to] = (fortCount[to] || 0) + 1;
-          spent += 1;
-        }
+        if (laneOf(state, to) !== effort.main || fortified[to] || E.canFortify(state, side, to) == null) continue;
+        trial = orders.concat([{ type: 'fortify', to: to }]);
+        trialCost = E.planCost(state, side, trial, false);
+        if (!trialCost.ok || trialCost.total > budget) continue;
+        orders = trial;
+        fortified[to] = true;
+        field = trialCost.commands;
+        spent = trialCost.total;
       }
     }
 
-    return { orders: orders, mood: mood, budget: budget, spent: spent, doctrine: doctrine || null };
+    var support = E.supportType(state, side, orders);
+    var supportedCost = E.planCost(state, side, orders, !!support);
+    if (support && supportedCost.total <= budget) {
+      orders.support = true;
+      spent = supportedCost.total;
+    }
+
+    orders.mainEffort = effort.main;
+    orders.effortUntil = effort.untilTurn;
+    return {
+      orders: orders, mood: mood, budget: budget, spent: spent,
+      fieldCommands: field,
+      support: orders.support ? support : null,
+      military: orders.filter(function (o) { return E.isMilitary(o.type); }).length,
+      effort: effort, doctrine: doctrine || null
+    };
   }
 
-  return { MOODS: MOODS, plan: plan, chooseMood: chooseMood };
+  return { MOODS: MOODS, plan: plan, chooseMood: chooseMood, chooseEffort: chooseEffort, laneOf: laneOf };
 })();

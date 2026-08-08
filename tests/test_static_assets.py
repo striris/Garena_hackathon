@@ -27,6 +27,12 @@ class StaticAssetTests(unittest.TestCase):
         cls.html = (ROOT / "index.html").read_text(encoding="utf-8")
         cls.main = (ROOT / "js/main.js").read_text(encoding="utf-8")
         cls.ai = (ROOT / "js/ai.js").read_text(encoding="utf-8")
+        cls.render = (ROOT / "js/render.js").read_text(encoding="utf-8")
+        cls.intro = (ROOT / "js/intro.js").read_text(encoding="utf-8")
+        cls.css = (ROOT / "css/style.css").read_text(encoding="utf-8")
+        cls.engine = (ROOT / "js/engine.js").read_text(encoding="utf-8")
+        cls.mapgen = (ROOT / "js/mapgen.js").read_text(encoding="utf-8")
+        cls.saltkin_prompt = (ROOT / "ai/prompts/saltkin.md").read_text(encoding="utf-8")
         cls.parser = IndexParser()
         cls.parser.feed(cls.html)
 
@@ -57,6 +63,66 @@ class StaticAssetTests(unittest.TestCase):
         self.assertIn("var FAILURE_TIMEOUT_MS = 3000;", self.ai)
         self.assertIn("REQUEST_TIMEOUT_MS = Math.ceil(serverTimeout) + 1500;", self.ai)
         self.assertIn("CF.ai.configure(health);", self.main)
+
+    def test_canvas_hit_testing_tracks_visual_size(self):
+        self.assertIn("new ResizeObserver(queueResize)", self.render)
+        self.assertIn("pointFromClient: pointFromClient", self.render)
+        self.assertIn("R.pointFromClient(e.clientX, e.clientY)", self.main)
+
+    def test_intro_navigation_remains_inside_viewport(self):
+        self.assertIn("grid-template-rows:minmax(0,1fr) auto", self.css)
+        self.assertIn("overflow-y:auto", self.css)
+
+    def test_tutorial_uses_short_animated_rule_scenes(self):
+        self.assertEqual(self.html.count('class="slide'), 6)
+        self.assertIn('id="intro-back"', self.html)
+        self.assertIn('id="intro-progress"', self.html)
+        self.assertIn('id="btn-tutorial"', self.html)
+        self.assertIn("READ THE RING", self.html)
+        self.assertIn("FUND A TURN", self.html)
+        self.assertIn("COMMIT THE EFFORT", self.html)
+        self.assertIn("BREAK AND CUT", self.html)
+        self.assertIn("CINDER AND VICTORY", self.html)
+        self.assertIn("setScene: setScene", self.intro)
+        self.assertIn("@keyframes command-commit", self.css)
+        self.assertIn("@keyframes attack-dash", self.css)
+        self.assertIn("prefers-reduced-motion", self.css)
+
+    def test_ai_thinking_locks_mutating_controls_and_invalidates_old_runs(self):
+        self.assertIn('id="ai-thinking"', self.html)
+        self.assertIn('aria-live="polite"', self.html)
+        self.assertIn("function interactionLocked()", self.main)
+        self.assertIn("function beginAIWait(", self.main)
+        self.assertIn("function syncControls()", self.main)
+        self.assertIn("function isCurrentRun(run)", self.main)
+        self.assertIn("invalidateTurnFlow();", self.main)
+        self.assertIn("if (interactionLocked() || game.over) return;", self.main)
+        self.assertIn("position:fixed", self.css)
+
+    def test_map_previews_legal_targets_and_flashes_invalid_clicks(self):
+        self.assertIn("setLegalTargets: setLegalTargets", self.render)
+        self.assertIn("function legalTargetsForTool()", self.main)
+        self.assertIn("case 'invalid':", self.render)
+        self.assertIn('class="order-remove"', self.main)
+
+    def test_field_commands_constrain_expansion_and_redeployment(self):
+        self.assertIn("var FIELD_COMMANDS = 2;", self.engine)
+        self.assertIn("type === 'expand' || type === 'raid' || type === 'fortify'", self.engine)
+        self.assertIn("commandPreview: commandPreview", self.engine)
+        self.assertIn("provisionalExpands", self.engine)
+        self.assertIn("Expand, Raid, and Fortify share two field commands", self.saltkin_prompt)
+
+    def test_income_funds_mobilization_reserve_and_support(self):
+        self.assertIn("var MOBILIZATION_COST = 2;", self.engine)
+        self.assertIn("var SUPPORT_COST = 2;", self.engine)
+        self.assertIn("var RESERVE_CAP = 6;", self.engine)
+        self.assertIn("availableBudget: availableBudget", self.engine)
+        self.assertIn("supportType: supportType, planCost: planCost", self.engine)
+        self.assertIn('id="btn-support"', self.html)
+
+    def test_opening_focus_is_seeded_and_public(self):
+        self.assertIn("openingFocus: openingFocus", self.mapgen)
+        self.assertIn("opening: { route: m.openingFocus", self.engine)
 
 
 if __name__ == "__main__":

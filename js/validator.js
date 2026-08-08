@@ -14,7 +14,7 @@ CF.validator = (function () {
     'the same side cannot be the main target three seasons running',
     'the same template cannot run twice in a row',
     'a capital can never be destroyed',
-    'no event may cut the ring in two'
+    'no event may sever every route between the capitals'
   ];
 
   // The sixth rule is not in the original spec, and it was added because
@@ -22,7 +22,7 @@ CF.validator = (function () {
   // narrow arcs, and one eruption across the wrong square walls them apart
   // for the rest of the match. A mountain that wants a fight must never
   // make fighting impossible.
-  function ringIsWhole(state) {
+  function routeNetworkIsWhole(state) {
     var a = state.capitals[1], b = state.capitals[2];
     if (a == null || b == null) return true;
     var seen = {}, stack = [a];
@@ -67,8 +67,8 @@ CF.validator = (function () {
       if (!t || !t.land) fails.push('it destroys the ' + E.SIDE[side] + ' capital');
     });
 
-    if (ringIsWhole(state) && !ringIsWhole(sim.state))
-      fails.push('it cuts the ring in two and the peoples could never reach each other again');
+    if (routeNetworkIsWhole(state) && !routeNetworkIsWhole(sim.state))
+      fails.push('it severs every ladder route and the peoples could never reach each other again');
 
     // don't let the mountain look like it has picked a side
     var mainTarget = worstHit(before, after);

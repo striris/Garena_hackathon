@@ -2,7 +2,7 @@
 
 **A strategy game where the rival learns you—and the map is a player too.**
 
-Two peoples fight over a procedurally generated ring of islands. The adaptive
+Two peoples fight over a procedurally varied double-route ladder ring. The adaptive
 Saltkin studies only resolved public play and chooses a three-turn Doctrine. The
 neutral Cinder Director compares safe world interventions through deterministic
 counterfactual simulations, warns the player, acts, then scores its prediction.
@@ -49,6 +49,7 @@ browser security prevents the live AI endpoints from working under `file://`.
 | Component | Behaviour |
 |---|---|
 | Playable game | 25 actionable turns, one player versus Saltkin |
+| Battlefield | Two broad north/south routes, two mirrored cross-caldera bridges, and eight visible Relay squares |
 | Saltkin Strategic AI | Privacy-preserving player profile → three-turn Doctrine → legal deterministic orders |
 | Cinder Director | Up to ten safe candidates, three counterfactual rollouts each, candidate-ID-only LLM selection |
 | Shadow baseline | Original scored heuristic remains visible without controlling an LLM decision |
@@ -115,17 +116,47 @@ offered. Raw model output and private chain-of-thought are not displayed.
 
 ## Deterministic game rules
 
+The capitals share broad north and south routes. Two rotationally mirrored
+cross-caldera bridges let a breakthrough on one route turn into the rear of the
+other. Each bridge landing is two squares wide and marked as a Supply Relay;
+controlling both squares can isolate the enemy front beyond it. Relay squares
+have zero fertility and low elevation: they are tactical junctions, not bonus
+income points or replacement fortresses.
+
 You earn the fertility of every supplied square you hold and spend it on:
 
 | Order | Cost | Effect |
 |---|---:|---|
 | Expand | 2 | Claim adjacent empty land at strength 1 |
-| Fortify | 1 | Add 2 strength to a held square |
+| Fortify | 2 | Add 1 strength to a supplied square, once per turn, up to strength 6 |
 | Raid | 3 | Attack an adjacent enemy square |
 
-Attack is attacker strength + 3. Defence is target strength + height. Supply must
-trace through owned land to the capital; cut-off squares earn nothing and starve.
-Win with 10 Beacon Points or the most land after 25 completed turns.
+Expand, Raid, and Fortify share two field commands per side per turn. The first
+accepted action commits that side to a `MAIN EFFORT` north or south for three
+turns. Once the lock expires, changing route spends one command on redeployment,
+so only one action remains that turn. Mobilizing the second command—including a
+redeployment—costs 2 additional supply. Every 2 unspent income becomes 1 Supply
+Reserve, capped at 6; current income is spent before reserve.
+
+Two consecutive Expands can continue through the first newly claimed square;
+two Raids against one target from distinct supplied sources gain +2 attack. One
+optional Operation Support per turn costs 2 more: March Supply establishes the
+second chained Expand at strength 2, while Siege Support adds +1 to a coordinated
+Raid. Support never strengthens Fortify and never creates another command.
+
+At the start of a match, one globally named route receives an `ASH SURGE` for
+four turns and contains the equidistant Beacon. Supplied non-capital squares on
+that route gain +1 fertility for both sides. This creates one fair shared
+opening objective while the other route remains available for a later flank.
+
+Supply traces through owned land and Relay junctions to the capital. Cut-off
+squares earn nothing, cannot Fortify, and lose one strength per turn. The Beacon
+scores only while supplied. After two unchanged turns Cinder Pressure warns the
+players; from turn three it erodes front-line strength above three, and continued
+stillness temporarily opens a two-turn central crossing. A capture or new supply
+cut resets the pressure.
+
+Win with 10 supplied Beacon Points or the most land after 25 completed turns.
 
 ## Guardrails
 
@@ -136,7 +167,7 @@ Cinder proposes. Plain code decides. No event may:
 3. Target the same side for three consecutive seasons.
 4. Repeat the previous template.
 5. Destroy a capital.
-6. Cut the ring so the peoples can never reach one another.
+6. Sever every ladder route so the peoples can never reach one another.
 
 Designer overrides pass the same checks. Paused events remain due. Earthquake
 selection, damage, warning, message, and animation all use the same region.
@@ -160,6 +191,7 @@ ai/schemas/          strict decision schemas
 ai_service.py        SDK client, parsing and trusted validation
 server.py            static allowlist and same-origin API
 js/engine.js         pure turn rules
+js/mapgen.js         symmetric double-route ladder, Relays and pressure crossing
 js/events.js         ten fixed world-event templates
 js/validator.js      hard event guardrails
 js/profile.js        resolved-history player profile and five-match memory
@@ -181,11 +213,17 @@ node tools/simulate.js 400
 python -m unittest discover -s tests -v
 ```
 
-The invariant suite covers deterministic replay, pure state transitions, all
-event templates, 25 actionable turns, override safety, overdue events,
-Earthquake regions, Saltkin request privacy, Doctrine lifecycle and all 180 enum
-combinations, candidate safety, rollout purity, the 40% agency cap, and side-bias
-sampling.
+The fixed 400-match run currently produces 38.3% Ashfarer wins, 50.5% Saltkin
+wins, and 11.3% draws. It averages 3.4 coordinated breaches per match; 80.8% of
+matches create at least one cut-off, while the last-resort pressure bridge opens
+in 22.5% of matches. All invariants below pass.
+
+The invariant suite covers ladder topology and 180-degree symmetry, broad
+cross-bridges, Relay cut-offs, field-command limits, coordinated attacks,
+Fortify caps, supplied Beacon scoring, Cinder Pressure, deterministic replay,
+all event templates, 25 actionable turns, override safety, overdue events,
+Earthquake regions, AI privacy, candidate safety, rollout purity, the 40% agency
+cap, and side-bias sampling.
 
 Remote evaluation is deliberately opt-in:
 
@@ -200,6 +238,18 @@ role. It refuses to start without both `CINDERFALL_API_KEY` and `--confirm-cost`
 
 `1`, `2`, `3` select a tool; click the map to queue; `Enter` ends the turn;
 right-click or click a queued order to remove it; `Esc` clears the queue.
+
+The opening tutorial is six short, replayable scenes rather than one long rules
+page. Animated ladder, command, march, coordinated-Raid, supply-cut and event
+diagrams show the exact numbers used by the engine. Its navigation remains
+outside the scrolling lesson area so Back/Next stays reachable on compact
+screens; the ORDERS panel's `HOW TO PLAY` button opens it again.
+
+When Saltkin or the Director is choosing, a themed status veil names the real
+phase, rotates descriptive progress text and locks every state-changing control.
+It never scales or moves the canvas. Network failure changes the same display to
+an explicit deterministic fallback, and match-scoped run tokens prevent an old
+timer or response from changing a newly created ring.
 
 For a five-minute demo, open the CINDER tab and show:
 
