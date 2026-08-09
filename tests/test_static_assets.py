@@ -74,15 +74,15 @@ class StaticAssetTests(unittest.TestCase):
         self.assertIn("overflow-y:auto", self.css)
 
     def test_tutorial_uses_short_animated_rule_scenes(self):
-        self.assertEqual(self.html.count('class="slide'), 6)
+        self.assertEqual(self.html.count('class="slide'), 4)
         self.assertIn('id="intro-back"', self.html)
         self.assertIn('id="intro-progress"', self.html)
         self.assertIn('id="btn-tutorial"', self.html)
-        self.assertIn("READ THE RING", self.html)
-        self.assertIn("FUND A TURN", self.html)
-        self.assertIn("COMMIT THE EFFORT", self.html)
-        self.assertIn("BREAK AND CUT", self.html)
-        self.assertIn("CINDER AND VICTORY", self.html)
+        self.assertIn("GOAL &amp; RING MAP", self.html)
+        self.assertIn("TWO SECRET COMMANDS", self.html)
+        self.assertIn("ATTACK &amp; DEFENCE", self.html)
+        self.assertIn("TWO AIs, EVENTS &amp; VICTORY", self.html)
+        self.assertIn("about 30 seconds", self.html)
         self.assertIn("setScene: setScene", self.intro)
         self.assertIn("@keyframes command-commit", self.css)
         self.assertIn("@keyframes attack-dash", self.css)
@@ -105,24 +105,49 @@ class StaticAssetTests(unittest.TestCase):
         self.assertIn("case 'invalid':", self.render)
         self.assertIn('class="order-remove"', self.main)
 
-    def test_field_commands_constrain_expansion_and_redeployment(self):
-        self.assertIn("var FIELD_COMMANDS = 2;", self.engine)
-        self.assertIn("type === 'expand' || type === 'raid' || type === 'fortify'", self.engine)
-        self.assertIn("commandPreview: commandPreview", self.engine)
-        self.assertIn("provisionalExpands", self.engine)
-        self.assertIn("Expand, Raid, and Fortify share two field commands", self.saltkin_prompt)
+    def test_two_free_expand_raid_guard_commands_are_visible(self):
+        self.assertIn("COMMANDS_PER_TURN = 2", self.engine)
+        self.assertIn("type === 'expand' || type === 'raid' || type === 'guard'", self.engine)
+        self.assertIn("commandPreview:commandPreview", self.engine)
+        self.assertIn("canGuard:canGuard", self.engine)
+        self.assertIn('data-tool="guard"', self.html)
+        self.assertIn('class="boost-btn hidden"', self.html)
+        self.assertIn("orders.length !== E.FIELD_COMMANDS", self.main)
 
-    def test_income_funds_mobilization_reserve_and_support(self):
-        self.assertIn("var MOBILIZATION_COST = 2;", self.engine)
-        self.assertIn("var SUPPORT_COST = 2;", self.engine)
-        self.assertIn("var RESERVE_CAP = 6;", self.engine)
-        self.assertIn("availableBudget: availableBudget", self.engine)
-        self.assertIn("supportType: supportType, planCost: planCost", self.engine)
-        self.assertIn('id="btn-support"', self.html)
+    def test_supply_and_permanent_fortification_are_removed(self):
+        self.assertIn("TOKEN_CAP:0", self.engine)
+        self.assertIn("t.fertileSite = 0", self.engine)
+        self.assertIn("t.relay = null", self.engine)
+        self.assertIn("block one Raid this turn", self.html)
+        self.assertNotIn('data-tool="fortify"', self.html)
 
-    def test_opening_focus_is_seeded_and_public(self):
-        self.assertIn("openingFocus: openingFocus", self.mapgen)
-        self.assertIn("opening: { route: m.openingFocus", self.engine)
+    def test_v02_limits_are_public(self):
+        self.assertIn("MAX_TURNS = 10", self.engine)
+        self.assertIn("BEACON_TO_WIN = 4", self.engine)
+        self.assertIn("/ 10 turns", self.html)
+        self.assertIn("0 / 4", self.html)
+        self.assertNotIn("game.pressure", self.main)
+
+    def test_endgame_uses_staged_settlement_animation(self):
+        for element_id in ("go-kicker", "go-a-bp", "go-b-bp", "go-a-land", "go-b-land", "go-verdict"):
+            self.assertIn(f'id="{element_id}"', self.html)
+            self.assertIn(f"$('{element_id}')", self.main)
+        self.assertIn("settlement-scores", self.html)
+        self.assertIn("settlement-rise", self.css)
+        self.assertIn("settlement-side-left", self.css)
+        self.assertIn("settlement-ember", self.css)
+
+    def test_bounded_ai_choices_are_explained_and_previewed_exactly(self):
+        profile = (ROOT / "js/profile.js").read_text(encoding="utf-8")
+        events = (ROOT / "js/events.js").read_text(encoding="utf-8")
+        self.assertIn("resolveStrategyCard", profile)
+        self.assertIn("selected_candidate", self.main)
+        self.assertIn("evidence_used", self.main)
+        self.assertIn("function drawPendingWarning", self.render)
+        self.assertIn("pending.affected", self.render)
+        self.assertIn("beacon_moves", events)
+        for removed_event in ("ground_breaks", "land_rises", "bloom", "forts_crack"):
+            self.assertNotIn(removed_event, events)
 
 
 if __name__ == "__main__":

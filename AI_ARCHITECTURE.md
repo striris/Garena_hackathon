@@ -1,143 +1,196 @@
-# CINDERFALL AI Architecture
+# CINDERFALL Lite — AI Architecture
 
-## Authority model
+This document describes the current v0.2 implementation. It is written around
+one question important to evaluation: **what may the models decide, and what
+remains under deterministic game authority?**
 
-CINDERFALL uses two goal-limited AI advisers around a deterministic engine:
+## 1. Authority boundary
+
+Both models are bounded selectors. Neither model writes game state.
 
 ```text
-resolved public history ──> Saltkin profile ──> Doctrine LLM
-                                                │
-                                                v
-                                      deterministic legal Bot
+                         ┌─────────────────────────────────┐
+resolved public history ─┤ 3 trusted Saltkin intent cards ├─> Saltkin LLM
+                         └─────────────────────────────────┘       │ ID only
+                                                                  v
+                                                     deterministic command bot
 
-settled match state ──> candidate enumeration ──> 3-turn rollouts
-                                                   │
-                                                   v
-                                             Director LLM
-                                                   │ candidate ID only
-                                                   v
-                         live validator ──> warning ──> execution
+                         ┌─────────────────────────────────┐
+settled board state ─────┤ 3 exact fair Beacon positions  ├─> Cinder LLM
+                         └─────────────────────────────────┘       │ ID only
+                                                                  v
+                                                       exact announced move
+
+player envelope + Saltkin envelope ──> deterministic engine ──> next state
 ```
 
-The LLMs never receive authority to change a tile, create an event, spend
-resources, or waive a guardrail. Saltkin produces a high-level Doctrine. Cinder
-selects one ID from a program-generated candidate list. The engine is the only
-component that resolves orders and mutates cloned state.
+Only `js/engine.js` can:
 
-## Service boundary
+- accept or reject Expand, Raid and Guard;
+- resolve simultaneous command envelopes;
+- apply Guard cancellation and direct ownership flips;
+- award Beacon points;
+- detect capital loss and match victory;
+- apply the 10-turn tie-break.
 
-`server.py` serves the browser and owns three same-origin endpoints:
+## 2. Saltkin role
+
+### Trusted input
+
+`js/profile.js` derives aggregate features from commands already accepted and
+resolved by the engine. It produces exactly three cards containing:
+
+```json
+{
+  "id": "S1",
+  "intent": "RAID",
+  "region": "NORTH"
+}
+```
+
+The current player's unsubmitted command array remains inside `js/main.js` and
+is forbidden by the Python request validator.
+
+Allowed intent values:
+
+- `EXPAND`
+- `RAID`
+- `DEFEND`
+- `BEACON`
+
+Allowed region values:
+
+- `NORTH`
+- `SOUTH`
+- `BEACON`
+- `CAPITAL`
+
+### Model output
+
+The model returns only:
+
+```json
+{
+  "selected_candidate": "S1",
+  "evidence_used": ["north_order_share"],
+  "explanation": "The player has repeatedly committed to the north arc."
+}
+```
+
+`ai_service.py` validates the exact card shape, enums, IDs and evidence keys.
+`js/profile.js` then resolves the returned ID against the same offered list.
+`js/bot.js` converts the trusted intent into at most two legal tile commands.
+
+The intent normally lasts two resolved uses. At least one generated command is
+scored toward that public intent. The second command remains uncertain, giving
+the player useful information without revealing the whole enemy envelope.
+
+## 3. Cinder role
+
+Cinder has one capability: select the Beacon's next exact position.
+
+`js/director.js` generates three candidate land tiles. Candidates:
+
+- exclude capitals and the current Beacon;
+- keep both capitals' approach distances within one action;
+- prefer the opposite north/south arc;
+- are spatially separated when the map offers enough choices.
+
+All candidates use the single trusted event family `beacon_moves` and include
+their exact `affected` tile before the model call.
+
+The model selects one offered `C1`–`C3` ID and cites public report evidence.
+The browser maps the ID back to the trusted event, displays the destination,
+and `js/validator.js` checks it again against the live board before
+`js/events.js` moves the Beacon.
+
+Cinder cannot:
+
+- create, sink or alter land;
+- change tile ownership;
+- weaken Guard or Raid;
+- move a capital;
+- change the score or victory threshold;
+- substitute an unannounced destination.
+
+## 4. Timing
+
+Saltkin intent is refreshed every two resolved uses or when no valid card is
+available. Cinder selection is requested on even turns; the resulting exact
+destination remains visible through the following command phase. The current
+Beacon scores before the announced move is applied, and the destination begins
+scoring on the next turn.
+
+This timing gives the player a full strategic response window.
+
+## 5. Server and schema boundary
+
+`server.py` owns three same-origin endpoints:
 
 - `GET /api/ai/health`
 - `POST /api/ai/saltkin`
 - `POST /api/ai/director`
 
-`ai_service.py` creates the SDK client with:
+`ai_service.py` creates the OpenAI Python SDK client from server-side
+environment variables. The browser never receives the API key. Prompts live in
+`ai/prompts/`, and model responses must match the JSON Schemas in
+`ai/schemas/`.
 
-```python
-OpenAI(
-    base_url=os.environ["CINDERFALL_AI_BASE_URL"],
-    api_key=os.environ["CINDERFALL_API_KEY"],
-    timeout=15,
-    max_retries=0,
-)
+Trusted Python validation additionally rejects:
+
+- unknown or duplicate candidate IDs;
+- unsupported card values or event families;
+- extra candidate fields;
+- evidence keys absent from the request;
+- any Saltkin request containing a current or queued order array;
+- malformed, empty or oversized model output.
+
+## 6. Failure behaviour
+
+The following all become explicit fallback states:
+
+- missing credentials;
+- request timeout;
+- provider or gateway error;
+- malformed JSON;
+- invalid schema;
+- unknown candidate ID;
+- stale response for an old match or turn.
+
+Fallback does not weaken the rules. The deterministic Saltkin planner selects a
+local intent, and the deterministic Cinder baseline selects the first validated
+Beacon destination. The match remains playable and reproducible.
+
+## 7. Privacy
+
+Saltkin receives only resolved public state and aggregate play tendencies. It
+does not receive identity information, accounts, chat text or the current
+secret order queue.
+
+Local player memory is versioned, stores at most five aggregate match
+summaries, and can be cleared from the audit console. API keys remain in an
+ignored `.env` or process environment.
+
+## 8. Judge-visible evidence
+
+The normal game view exposes:
+
+- Saltkin's current intent and region;
+- Cinder's exact next Beacon tile;
+- the result of both simultaneous command envelopes;
+- an explicit `LLM` or `FALLBACK` source.
+
+The audit console additionally shows model, latency, request ID, selected card,
+named evidence and all offered Cinder destinations. No private chain-of-thought
+is requested or displayed.
+
+## 9. Verification
+
+```powershell
+node tools/rules_v02_smoke.js
+python -m unittest discover -s tests -v
 ```
 
-Both decisions use `client.chat.completions.create()`. The default model is
-`openai/gpt-oss-120b`. The complete schema is included in the system message,
-then the returned JSON is parsed and checked again by trusted server code. An
-unknown candidate, unknown evidence field, extra output property, invalid enum,
-timeout, missing key, provider rejection, or malformed JSON becomes an explicit
-error and deterministic fallback. The browser learns this timeout from the
-health endpoint and adds a 1.5-second response margin, so it does not disconnect
-at the same instant as the SDK. The designer failure simulation remains three
-seconds for a concise demo.
-
-The browser cannot request `.env`, Python source, Prompt files, Schema files, or
-other repository content through the static server allowlist.
-
-## Deterministic battlefield and combat authority
-
-The generated battlefield has a fixed double-route ladder skeleton: broad north
-and south capital routes plus two two-tile-wide, rotationally mirrored
-cross-caldera bridges. Procedural generation varies only mirrored terrain and
-outer fringe land, so it cannot remove the flanking topology. Eight visible
-Relay squares mark the four bridge landings.
-They have zero fertility and low elevation, so their value comes only from
-connectivity rather than extra income or defensive terrain.
-
-Expand, Raid, and Fortify share two field commands per side. Fortify costs two,
-adds one, is limited to one use per supplied square per turn, and cannot exceed
-strength six. The engine—not the prompt—locks both sides to a north/south main
-effort for three turns. After expiry, changing route consumes one command on
-redeployment. Filling the second command slot costs 2 supply. Half of unspent
-income becomes a capped six-point reserve. A once-per-turn, two-supply Operation
-Support can establish a chained Expand at strength 2 or add +1 to a coordinated
-Raid; it cannot affect Fortify. Two consecutive Expands may advance through the
-first new square; two distinct supplied Raid sources aimed at one target gain
-+2. A seeded, equi-distant Ash Surge and Beacon give both sides the same opening
-route focus. The LLM Doctrine adjusts priorities but cannot add commands or
-waive rules.
-
-Supply remains a capital flood fill. Taking both squares of a Relay cross-section
-can therefore isolate the front beyond it. Cut-off land earns no fertility,
-cannot Fortify, and starves; an unsupplied Beacon scores no point. Cinder Pressure
-is trusted engine code: two unchanged turns warn, three erode excess front-line
-strength, and continued stillness opens a neutral central bridge for two turns.
-It never grants ownership or directly cuts either side's supply.
-
-## Saltkin privacy and lifecycle
-
-The player profile uses only orders accepted and resolved by the engine. It
-contains aggregate ratios and counts, not the current queue, identity, text
-input, or personal information. The current order array is local to `main.js`
-and is not an argument to `CF.profile.requestPayload()`.
-
-The versioned `localStorage` record retains at most five match summaries. The
-designer console includes a clear-memory control.
-
-A Doctrine normally lasts three uses. It cannot be replaced before two uses,
-even after a world event, three-tile loss, or Beacon change. Each turn can start
-at most one request. Responses are accepted only if `matchId`, `snapshotTurn`,
-request sequence, current turn, and pre-order phase still match. Otherwise the
-response is discarded and the previous Doctrine or heuristic remains active.
-
-The browser exposes an explicit, non-numeric thinking phase while a Doctrine is
-requested, while Saltkin seals its simultaneous orders, and while the Director
-compares candidates. State-changing controls and keyboard shortcuts are locked
-during those phases. Every resolution timer and Director request carries a
-match/turn run token; creating a new ring invalidates the token and clears its
-timers, so a late callback cannot mutate the new match. Tabs remain ordinary UI,
-and the thinking veil does not transform the canvas or alter hit-test geometry.
-
-## Director candidates and counterfactuals
-
-Every season, browser-side deterministic code:
-
-1. Enumerates template × intensity × region combinations.
-2. Applies all six guardrails.
-3. Rejects candidates that reduce either side's available Expand/Raid targets by
-   more than 40%.
-4. Deduplicates identical resulting maps.
-5. Selects at most ten candidates round-robin by template.
-6. Runs three pure, deterministic, three-turn rollouts per candidate: continued
-   pressure, warning response, and contesting a new prize.
-
-The LLM sees aggregate outcomes—raids, captures, land/income gap, Beacon changes,
-cut-off tiles, and remaining choices—and may return only an offered candidate ID.
-The original heuristic runs in parallel as a visible shadow baseline.
-
-At execution time the chosen event is checked again against the live board. If
-it became unsafe, Cinder tries the next live-safe candidate and finally the
-deterministic safe default. An illegal event is never applied.
-
-## Audit data
-
-The UI records normalized decision data only:
-
-- source (`LLM` or `FALLBACK`), model, latency, request ID;
-- Doctrine or Director goal and evidence field names;
-- candidate counterfactual summaries and shadow baseline;
-- guardrail results, player explanation, and prediction score.
-
-It does not request or display private chain-of-thought and never logs API keys.
+These checks cover the deterministic rule boundary, strict AI candidate
+validation, secret-order exclusion, API-key isolation, fallback behaviour,
+static integration and the animated tutorial structure.

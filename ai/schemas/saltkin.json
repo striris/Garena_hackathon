@@ -1,21 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "SaltkinDoctrine",
+  "title": "SaltkinStrategySelection",
   "type": "object",
   "additionalProperties": false,
-  "required": ["stance", "objective", "target_region", "risk", "player_model", "intent", "evidence_used"],
+  "required": ["selected_candidate", "evidence_used", "explanation"],
   "properties": {
-    "stance": {"enum": ["ASSAULT", "GROWTH", "FORTRESS"]},
-    "objective": {"enum": ["BEACON", "LAND", "SUPPLY", "CAPITAL"]},
-    "target_region": {"enum": ["NORTH", "SOUTH", "EAST", "WEST", "CENTRE"]},
-    "risk": {"enum": ["LOW", "MEDIUM", "HIGH"]},
-    "player_model": {
-      "type": "array",
-      "uniqueItems": true,
-      "items": {"enum": ["beacon_chase", "high_ground_turtle", "preferred_arc", "supply_neglect", "warning_response", "last_match_tactic"]}
-    },
-    "intent": {"type": "string", "minLength": 1, "maxLength": 240},
-    "evidence_used": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}
+    "selected_candidate": {"type": "string", "pattern": "^S[1-3]$"},
+    "evidence_used": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "explanation": {"type": "string", "minLength": 1, "maxLength": 240}
   }
 }
-

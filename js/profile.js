@@ -5,8 +5,8 @@
    ============================================================ */
 CF.profile = (function () {
   var E = CF.engine, EV = CF.events;
-  var STORAGE_KEY = 'cinderfall.player-memory.v1';
-  var VERSION = 1;
+  var STORAGE_KEY = 'cinderfall.player-memory.v2';
+  var VERSION = 2;
 
   function emptyMemory() { return { version: VERSION, matches: [] }; }
 
@@ -31,34 +31,34 @@ CF.profile = (function () {
   }
 
   function ratio(n, d) { return d ? +(n / d).toFixed(3) : 0; }
-  function tactic(spend) {
+  function tactic(actions) {
     var keys = ['raid', 'expand', 'fortify'];
-    keys.sort(function (a, b) { return spend[b] - spend[a] || a.localeCompare(b); });
-    return spend[keys[0]] ? keys[0].toUpperCase() : 'NONE';
+    keys.sort(function (a, b) { return actions[b] - actions[a] || a.localeCompare(b); });
+    return actions[keys[0]] ? keys[0].toUpperCase() : 'NONE';
   }
 
   function build(state, memory) {
     memory = memory || load();
     var totalTargets = 0, nearBeacon = 0, north = 0, south = 0;
-    var fortifySpend = 0, highFortifySpend = 0;
+    var fortifyOrders = 0, highFortifyOrders = 0;
     var cutOffTileTurns = 0, ownedTileTurns = 0;
     var warning = { avoid: 0, fortify: 0, press: 0 };
-    var spend = { raid: 0, expand: 0, fortify: 0 };
-    state.stats.forEach(function (stat) {
+    var actions = { raid: 0, expand: 0, fortify: 0 };
+    (state.stats || []).forEach(function (stat) {
       cutOffTileTurns += stat.cutOffA || 0;
       ownedTileTurns += stat.landA || 0;
       var list = stat.settledOrders && stat.settledOrders[1] ? stat.settledOrders[1] : [];
       list.forEach(function (o) {
         totalTargets++;
-        spend[o.type] += o.cost || E.COST[o.type] || 0;
+        if (actions[o.type] != null) actions[o.type]++;
         var x = o.to % state.W, y = (o.to / state.W) | 0;
         var historicBeacon = stat.beaconTile == null ? state.beacon : stat.beaconTile;
         var historicBx = historicBeacon % state.W, historicBy = (historicBeacon / state.W) | 0;
         if (Math.abs(x - historicBx) + Math.abs(y - historicBy) <= 2) nearBeacon++;
         if (y < state.H / 2) north++; else south++;
         if (o.type === 'fortify') {
-          fortifySpend += o.cost || 1;
-          if (o.targetElev >= 2) highFortifySpend += o.cost || 1;
+          fortifyOrders++;
+          if (o.targetElev >= 1) highFortifyOrders++;
         }
         if (stat.warningRegion) {
           if (!EV.inRegion(state, o.to, stat.warningRegion)) warning.avoid++;
@@ -78,7 +78,7 @@ CF.profile = (function () {
     return {
       features: {
         beacon_chase: ratio(nearBeacon, totalTargets),
-        high_ground_turtle: ratio(highFortifySpend, fortifySpend),
+        high_ground_turtle: ratio(highFortifyOrders, fortifyOrders),
         preferred_arc: arc,
         supply_neglect: ratio(cutOffTileTurns, ownedTileTurns),
         warning_response: warningResponse,
@@ -90,8 +90,8 @@ CF.profile = (function () {
         total_targeted_orders: totalTargets,
         north_order_share: ratio(north, totalTargets),
         south_order_share: ratio(south, totalTargets),
-        high_ground_fortify_spend: highFortifySpend,
-        total_fortify_spend: fortifySpend,
+        high_ground_fortify_orders: highFortifyOrders,
+        total_fortify_orders: fortifyOrders,
         cut_off_tile_turns: cutOffTileTurns,
         owned_tile_turns: ownedTileTurns,
         warning_avoid_orders: warning.avoid,
@@ -99,13 +99,74 @@ CF.profile = (function () {
         warning_press_orders: warning.press,
         previous_match_tactic: previous ? previous.tactic : 'NONE'
       },
-      currentTactic: tactic(spend)
+      currentTactic: tactic(actions)
     };
+  }
+
+  function oppositeFront(front) { return front === 'NORTH' ? 'SOUTH' : 'NORTH'; }
+
+  // Three trusted cards expose a real strategic trade-off while keeping the
+  // model away from tiles, token spending and legality. Their IDs are the only
+  // values the LLM may return.
+  function strategyCandidates(state, profile) {
+    profile = profile || build(state).features;
+    var observed = profile.preferred_arc;
+    if (observed !== 'NORTH' && observed !== 'SOUTH') observed = state.turn % 2 ? 'NORTH' : 'SOUTH';
+    var other = oppositeFront(observed);
+
+    var pressure = { NORTH: 0, SOUTH: 0 };
+    for (var i = 0; i < state.tiles.length; i++) {
+      var t = state.tiles[i];
+      if (!t.land || (t.owner !== 1 && t.owner !== 2)) continue;
+      var front = ((i / state.W) | 0) < state.H / 2 ? 'NORTH' : 'SOUTH';
+      pressure[front] += t.owner === 1 ? 1 : -1;
+    }
+    var threatened = pressure.NORTH === pressure.SOUTH ? other
+      : pressure.NORTH > pressure.SOUTH ? 'NORTH' : 'SOUTH';
+
+    return [
+      { id: 'S1', intent: 'RAID', region: observed },
+      { id: 'S2', intent: 'EXPAND', region: other },
+      { id: 'S3', intent: state.tiles[state.beacon].owner === 2 ? 'DEFEND' : 'BEACON', region: 'BEACON' }
+    ];
+  }
+
+  function resolveStrategyCard(payload, decision) {
+    if (!payload || !decision || !Array.isArray(payload.candidates)) return null;
+    var card = payload.candidates.filter(function (c) { return c.id === decision.selected_candidate; })[0];
+    if (!card) return null;
+    return {
+      id: card.id,
+      intent: card.intent,
+      region: card.region,
+      evidence_used: (decision.evidence_used || []).slice(),
+      explanation: decision.explanation || ''
+    };
+  }
+
+  function fertileSiteControl(state) {
+    var out = {
+      ashfarers: { owned: 0, supplied: 0 },
+      saltkin: { owned: 0, supplied: 0 },
+      open: 0
+    };
+    state.tiles.forEach(function (t, i) {
+      if (!t.land || !t.fertileSite) return;
+      if (t.owner === 1) {
+        out.ashfarers.owned++;
+        if (state.supply[i] === 1) out.ashfarers.supplied++;
+      } else if (t.owner === 2) {
+        out.saltkin.owned++;
+        if (state.supply[i] === 2) out.saltkin.supplied++;
+      } else out.open++;
+    });
+    return out;
   }
 
   function requestPayload(state, matchId) {
     var memory = load();
     var profile = build(state, memory);
+    var cards = strategyCandidates(state, profile.features);
     var relayControl = {};
     Object.keys(state.relays || {}).forEach(function (name) {
       var counts = { ashfarers: 0, saltkin: 0, open: 0 };
@@ -122,37 +183,28 @@ CF.profile = (function () {
       snapshotTurn: state.turn,
       profile: profile.features,
       evidence: profile.evidence,
+      candidates: cards,
       recentMatches: memory.matches.slice(-5),
       publicState: {
         turn: state.turn,
+        maxTurns: E.MAX_TURNS || 15,
         land: { ashfarers: E.landCount(state, 1), saltkin: E.landCount(state, 2) },
-        income: { ashfarers: E.income(state, 1), saltkin: E.income(state, 2) },
-        reserve: {
-          ashfarers: state.reserve && state.reserve[1] || 0,
-          saltkin: state.reserve && state.reserve[2] || 0
+        tokens: {
+          ashfarers: state.tokens && state.tokens[1] || 0,
+          saltkin: state.tokens && state.tokens[2] || 0,
+          cap: E.TOKEN_CAP || 2
         },
-        availableBudget: {
-          ashfarers: E.availableBudget(state, 1),
-          saltkin: E.availableBudget(state, 2)
-        },
+        fertileSites: fertileSiteControl(state),
         beaconPoints: { ashfarers: state.bp[1], saltkin: state.bp[2] },
         beaconOwner: state.tiles[state.beacon].owner,
         beaconSupplied: !state.tiles[state.beacon].owner ||
           state.supply[state.beacon] === state.tiles[state.beacon].owner,
         fieldCommandsPerTurn: E.FIELD_COMMANDS,
-        secondCommandMobilizationCost: E.MOBILIZATION_COST,
-        operationSupportCost: E.SUPPORT_COST,
-        openingFocus: state.opening ? state.opening.route : null,
-        mainEffort: state.strategy && state.strategy[2] ? state.strategy[2] : null,
         relayControl: relayControl,
-        cinderPressure: state.pressure ? {
-          staleTurns: state.pressure.staleTurns,
-          bridgeTurns: state.pressure.bridgeTurns
-        } : { staleTurns: 0, bridgeTurns: 0 },
         warnedEvent: state.pending ? {
           template: state.pending.template,
           region: state.pending.region,
-          intensity: state.pending.intensity,
+          affected: (state.pending.affected || []).slice(),
           fireTurn: state.pending.fireTurn
         } : null
       }
@@ -176,11 +228,11 @@ CF.profile = (function () {
   function shouldRequestDoctrine(input) {
     if (input.pending || input.lastRequestTurn === input.turn) return false;
     if (!input.hasDoctrine) return true;
-    if (input.uses >= 3) return true;
-    return input.uses >= 2 && (input.lostLand >= 3 || input.beaconChanged || input.worldChanged);
+    return input.uses >= 2;
   }
 
   return { VERSION: VERSION, STORAGE_KEY: STORAGE_KEY, load: load, clear: clear,
-           build: build, requestPayload: requestPayload, completeMatch: completeMatch,
+           build: build, strategyCandidates: strategyCandidates, resolveStrategyCard: resolveStrategyCard,
+           fertileSiteControl: fertileSiteControl, requestPayload: requestPayload, completeMatch: completeMatch,
            shouldRequestDoctrine: shouldRequestDoctrine };
 })();

@@ -19,27 +19,10 @@ DEFAULT_BASE_URL = "https://api.aiand.com/v1"
 DEFAULT_MODEL = "openai/gpt-oss-120b"
 DEFAULT_TIMEOUT_SECONDS = 15.0
 
-STANCES = {"ASSAULT", "GROWTH", "FORTRESS"}
-OBJECTIVES = {"BEACON", "LAND", "SUPPLY", "CAPITAL"}
-REGIONS = {"NORTH", "SOUTH", "EAST", "WEST", "CENTRE"}
-RISKS = {"LOW", "MEDIUM", "HIGH"}
-PLAYER_FEATURES = {
-    "beacon_chase",
-    "high_ground_turtle",
-    "preferred_arc",
-    "supply_neglect",
-    "warning_response",
-    "last_match_tactic",
-}
-DIRECTOR_GOALS = {
-    "BREAK_STALEMATE",
-    "RESTORE_COMPETITION",
-    "CREATE_CONTESTED_PRIZE",
-    "PRESERVE_VARIETY",
-    "SLOW_RUNAWAY",
-}
-PREDICTION_METRICS = {"raids_per_turn", "captures", "land_gap", "beacon_contest"}
-DIRECTIONS = {"increase", "decrease"}
+STRATEGY_INTENTS = {"EXPAND", "RAID", "DEFEND", "BEACON"}
+STRATEGY_REGIONS = {"NORTH", "SOUTH", "BEACON", "CAPITAL"}
+EVENT_TEMPLATES = {"beacon_moves"}
+EVENT_REGIONS = {"north", "south", "east", "west", "centre"}
 
 
 class AIServiceError(RuntimeError):
@@ -118,75 +101,48 @@ def _contains_private_order_queue(value: Any) -> bool:
     return False
 
 
-def validate_saltkin(raw: Any, payload: dict[str, Any]) -> dict[str, Any]:
-    data = _require_object(raw, "model output")
-    required = {"stance", "objective", "target_region", "risk", "player_model", "intent", "evidence_used"}
-    if set(data) != required:
-        raise AIServiceError("invalid_model_output", "Saltkin output fields do not match the schema")
+def _candidate_ids(payload: dict[str, Any]) -> set[str]:
+    return {
+        item.get("id")
+        for item in payload.get("candidates", [])
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    }
 
-    player_model = _string_list(data["player_model"], "player_model")
-    if any(item not in PLAYER_FEATURES for item in player_model):
-        raise AIServiceError("invalid_model_output", "player_model cites an unknown profile feature")
-    supplied_profile = set(_require_object(payload.get("profile", {}), "profile"))
-    if any(item not in supplied_profile for item in player_model):
-        raise AIServiceError("invalid_model_output", "player_model cites a profile feature absent from the request")
+
+def _validate_candidate_decision(raw: Any, payload: dict[str, Any], role: str) -> dict[str, Any]:
+    """Validate the deliberately tiny decision shared by both AI roles.
+
+    Models choose an offered ID and cite public report keys. They never return
+    executable strategy fields, map operations, combat numbers, or rules.
+    """
+    data = _require_object(raw, "model output")
+    required = {"selected_candidate", "evidence_used", "explanation"}
+    if set(data) != required:
+        raise AIServiceError("invalid_model_output", f"{role} output fields do not match the schema")
+
+    selected = _string(data["selected_candidate"], "selected_candidate", 32)
+    if selected not in _candidate_ids(payload):
+        raise AIServiceError("unknown_candidate", f"{role} selected a candidate that was not offered")
 
     evidence = _string_list(data["evidence_used"], "evidence_used")
-    allowed_evidence = set(_require_object(payload.get("evidence", {}), "evidence"))
+    evidence_source = payload.get("evidence", {}) if role == "Saltkin" else payload.get("report", {})
+    allowed_evidence = set(_require_object(evidence_source, "evidence" if role == "Saltkin" else "report"))
     if any(item not in allowed_evidence for item in evidence):
         raise AIServiceError("invalid_model_output", "evidence_used cites data absent from the request")
 
     return {
-        "stance": _enum(data["stance"], STANCES, "stance"),
-        "objective": _enum(data["objective"], OBJECTIVES, "objective"),
-        "target_region": _enum(data["target_region"], REGIONS, "target_region"),
-        "risk": _enum(data["risk"], RISKS, "risk"),
-        "player_model": player_model,
-        "intent": _string(data["intent"], "intent"),
+        "selected_candidate": selected,
         "evidence_used": evidence,
+        "explanation": _string(data["explanation"], "explanation"),
     }
+
+
+def validate_saltkin(raw: Any, payload: dict[str, Any]) -> dict[str, Any]:
+    return _validate_candidate_decision(raw, payload, "Saltkin")
 
 
 def validate_director(raw: Any, payload: dict[str, Any]) -> dict[str, Any]:
-    data = _require_object(raw, "model output")
-    required = {"selected_candidate", "goal", "evidence_used", "prediction", "player_explanation", "confidence"}
-    if set(data) != required:
-        raise AIServiceError("invalid_model_output", "Director output fields do not match the schema")
-
-    candidate_ids = {
-        item.get("id") for item in payload.get("candidates", []) if isinstance(item, dict) and isinstance(item.get("id"), str)
-    }
-    selected = _string(data["selected_candidate"], "selected_candidate", 32)
-    if selected not in candidate_ids:
-        raise AIServiceError("unknown_candidate", "Director selected a candidate that was not offered")
-
-    evidence = _string_list(data["evidence_used"], "evidence_used")
-    allowed_evidence = set(_require_object(payload.get("report", {}), "report"))
-    if any(item not in allowed_evidence for item in evidence):
-        raise AIServiceError("invalid_model_output", "evidence_used cites data absent from the report")
-
-    prediction = _require_object(data["prediction"], "prediction")
-    if set(prediction) != {"metric", "direction", "horizon"}:
-        raise AIServiceError("invalid_model_output", "prediction fields do not match the schema")
-    if prediction["horizon"] != 3:
-        raise AIServiceError("invalid_model_output", "prediction horizon must be 3")
-
-    confidence = data["confidence"]
-    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)) or not 0 <= confidence <= 1:
-        raise AIServiceError("invalid_model_output", "confidence must be between 0 and 1")
-
-    return {
-        "selected_candidate": selected,
-        "goal": _enum(data["goal"], DIRECTOR_GOALS, "goal"),
-        "evidence_used": evidence,
-        "prediction": {
-            "metric": _enum(prediction["metric"], PREDICTION_METRICS, "prediction.metric", upper=False),
-            "direction": _enum(prediction["direction"], DIRECTIONS, "prediction.direction", upper=False),
-            "horizon": 3,
-        },
-        "player_explanation": _string(data["player_explanation"], "player_explanation"),
-        "confidence": float(confidence),
-    }
+    return _validate_candidate_decision(raw, payload, "Director")
 
 
 class AIService:
@@ -272,6 +228,17 @@ class AIService:
             raise AIServiceError("private_orders_forbidden", "Saltkin requests cannot contain the current order queue", 400)
         if not isinstance(request.get("matchId"), str) or not isinstance(request.get("snapshotTurn"), int):
             raise AIServiceError("invalid_request", "matchId and integer snapshotTurn are required", 400)
+        candidates = request.get("candidates")
+        if not isinstance(candidates, list) or len(candidates) != 3:
+            raise AIServiceError("invalid_request", "Saltkin requires exactly three strategy candidates", 400)
+        candidate_ids = [item.get("id") for item in candidates if isinstance(item, dict)]
+        if len(candidate_ids) != 3 or set(candidate_ids) != {"S1", "S2", "S3"}:
+            raise AIServiceError("invalid_request", "Saltkin candidate IDs must be present and unique", 400)
+        for candidate in candidates:
+            if set(candidate) != {"id", "intent", "region"}:
+                raise AIServiceError("invalid_request", "Saltkin candidate fields do not match the trusted card shape", 400)
+            if candidate["intent"] not in STRATEGY_INTENTS or candidate["region"] not in STRATEGY_REGIONS:
+                raise AIServiceError("invalid_request", "Saltkin candidate contains an unsupported strategy value", 400)
         raw, meta = self._complete("ai/prompts/saltkin.md", "ai/schemas/saltkin.json", request)
         return {
             "decision": validate_saltkin(raw, request),
@@ -283,13 +250,22 @@ class AIService:
     def director(self, payload: Any) -> dict[str, Any]:
         request = _require_object(payload, "request")
         candidates = request.get("candidates")
-        if not isinstance(candidates, list) or not candidates:
-            raise AIServiceError("invalid_request", "candidates must be a non-empty array", 400)
-        if len(candidates) > 10:
-            raise AIServiceError("invalid_request", "at most ten Director candidates are allowed", 400)
+        if not isinstance(candidates, list) or not 3 <= len(candidates) <= 5:
+            raise AIServiceError("invalid_request", "Director requires three to five candidates", 400)
         candidate_ids = [item.get("id") for item in candidates if isinstance(item, dict)]
         if len(candidate_ids) != len(candidates) or any(not isinstance(item, str) for item in candidate_ids) or len(set(candidate_ids)) != len(candidate_ids):
             raise AIServiceError("invalid_request", "Director candidate IDs must be present and unique", 400)
+        if candidate_ids != [f"C{index}" for index in range(1, len(candidates) + 1)]:
+            raise AIServiceError("invalid_request", "Director candidate IDs must be sequential C1-C5 IDs", 400)
+        for candidate in candidates:
+            event = candidate.get("event") if isinstance(candidate, dict) else None
+            if not isinstance(event, dict) or event.get("template") not in EVENT_TEMPLATES:
+                raise AIServiceError("invalid_request", "Director candidates must use a trusted Lite event", 400)
+            affected = event.get("affected")
+            if event.get("region") not in EVENT_REGIONS or not isinstance(affected, list) or not affected:
+                raise AIServiceError("invalid_request", "Director candidates require a region and exact affected tiles", 400)
+            if any(isinstance(item, bool) or not isinstance(item, int) or item < 0 for item in affected) or len(set(affected)) != len(affected):
+                raise AIServiceError("invalid_request", "Director affected tiles must be unique non-negative integers", 400)
         raw, meta = self._complete("ai/prompts/director.md", "ai/schemas/director.json", request)
         return {
             "decision": validate_director(raw, request),

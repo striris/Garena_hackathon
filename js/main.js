@@ -8,7 +8,7 @@
 
   var game = null;
   var orders = [];
-  var supportRequested = false;
+  var boostNext = false;
   var tool = 'expand';
   var busy = false;
   var paused = false;
@@ -33,11 +33,11 @@
   var THINKING_COPY = {
     doctrine: {
       kicker: 'SALTKIN WAR COUNCIL', title: 'Reading the resolved battlefield',
-      stages: ['Tracing supplied routes.', 'Weighing NORTH against SOUTH.', 'Counting exposed Relays.', 'Writing a three-turn doctrine.']
+      stages: ['Tracing supplied routes.', 'Comparing three trusted cards.', 'Reading the player’s settled habits.', 'Sealing a three-turn strategy card.']
     },
     orders: {
       kicker: 'SALTKIN COMMAND TENT', title: 'Sealing the rival orders',
-      stages: ['Placing the first command stone.', 'Testing the secondary front.', 'Funding any operation support.', 'Both envelopes are now sealed.']
+      stages: ['Placing the first command stone.', 'Testing the second command.', 'Assigning any supply tokens.', 'Both envelopes are now sealed.']
     },
     director: {
       kicker: 'CINDER DIRECTOR', title: 'Considering possible futures',
@@ -145,9 +145,9 @@
     app.classList.toggle('ai-thinking-active', !!Object.keys(aiWaits).length);
     app.setAttribute('aria-busy', locked ? 'true' : 'false');
     [].forEach.call(document.querySelectorAll('.tool'), function (button) { button.disabled = locked; });
-    if ($('btn-support')) $('btn-support').disabled = locked || !game || !E.supportType(game, 1, orders);
-    if ($('btn-clear')) $('btn-clear').disabled = locked || !orders.length;
-    if ($('btn-end')) $('btn-end').disabled = locked || !game || !!game.over;
+    if ($('btn-boost')) $('btn-boost').disabled = locked || !game || !!game.over || queuedBoosts() >= tokenCount(1);
+    if ($('btn-clear')) $('btn-clear').disabled = locked || !orders.length || !!(game && game.over);
+    if ($('btn-end')) $('btn-end').disabled = locked || !game || !!game.over || orders.length !== E.FIELD_COMMANDS;
     if ($('btn-tutorial')) $('btn-tutorial').disabled = locked;
     [].forEach.call(document.querySelectorAll('#tab-console input,#tab-console select,#tab-console button'), function (control) {
       control.disabled = locked;
@@ -172,9 +172,8 @@
     var active = false;
     var slides = [].slice.call(el.querySelectorAll('.slide'));
     var labels = [
-      'READ THE RING <kbd>→</kbd>', 'FUND A TURN <kbd>→</kbd>',
-      'COMMIT THE EFFORT <kbd>→</kbd>', 'BREAK AND CUT <kbd>→</kbd>',
-      'CINDER AND VICTORY <kbd>→</kbd>', 'TAKE THE RING <kbd>⏎</kbd>'
+      'THREE COMMANDS <kbd>→</kbd>', 'RAID &amp; GUARD <kbd>→</kbd>',
+      'READ THE AIs <kbd>→</kbd>', 'TAKE THE RING <kbd>⏎</kbd>'
     ];
 
     CF.intro.init($('introcanvas'));
@@ -254,6 +253,8 @@
     directorAudit = null;
     saltkinAI = {
       doctrine: null,
+      decision: null,
+      cards: [],
       source: 'FALLBACK',
       model: null,
       latencyMs: 0,
@@ -269,14 +270,14 @@
       seasonAtIssue: 0,
       eventsAtIssue: 0
     };
-    orders = []; supportRequested = false; tool = 'expand';
+    orders = []; boostNext = false; tool = 'expand';
     R.setState(game);
     R.setPreview([]);
     $('gameover').classList.add('hidden');
     $('warnbar').classList.add('hidden');
     say('world', 'A ring of islands, and a mountain under them that has never once sat still.');
-    say('', 'The Ashfarers hold the west. The Saltkin hold the east. Cinder wakes at the end of turn 3.');
-    say('beacon', 'ASH SURGE: the ' + game.opening.route + ' route gains +1 supplied fertility through turn ' + game.opening.untilTurn + '. Both sides are equally distant.');
+    say('', 'The Ashfarers hold the west. The Saltkin hold the east. Seal two commands: Expand, Raid or Guard.');
+    say('beacon', 'Hold the Beacon for 1 point each turn. First to ' + E.BEACON_TO_WIN + ' wins.');
     setTool('expand');
     renderFeed();
     refresh();
@@ -291,6 +292,21 @@
   }
 
   // ========================================================= Saltkin AI
+  function strategyCards(payload) {
+    var cards = payload && (payload.candidates || payload.strategy_cards || payload.strategyCards);
+    if (!Array.isArray(cards) && payload && payload.publicState)
+      cards = payload.publicState.strategy_cards || payload.publicState.strategyCards;
+    return Array.isArray(cards) ? cards.filter(function (card) {
+      return card && card.id && card.intent && card.region;
+    }).slice(0, 3) : [];
+  }
+
+  function trustedStrategyCard(cards, decision) {
+    var selected = decision && decision.selected_candidate;
+    for (var i = 0; i < cards.length; i++) if (cards[i].id === selected) return cards[i];
+    return null;
+  }
+
   function requestDoctrine(reason) {
     if (!game || game.over || interactionLocked() || orders.length || saltkinAI.pending ||
         saltkinAI.lastRequestTurn === game.turn) return;
@@ -298,6 +314,7 @@
     var seq = ++saltkinAI.requestSeq;
     var payload = CF.profile.requestPayload(game, requestMatch);
     payload.trigger = reason;
+    saltkinAI.cards = strategyCards(payload);
     saltkinAI.pending = true;
     saltkinAI.lastRequestTurn = snapshotTurn;
     saltkinAI.error = null;
@@ -316,7 +333,31 @@
         return;
       }
       saltkinAI.pending = false;
-      saltkinAI.doctrine = response.decision;
+      var chosenCard = typeof CF.profile.resolveStrategyCard === 'function'
+        ? CF.profile.resolveStrategyCard(payload, response.decision)
+        : trustedStrategyCard(saltkinAI.cards, response.decision);
+      if (!chosenCard) {
+        saltkinAI.pending = false;
+        saltkinAI.doctrine = null;
+        saltkinAI.decision = response.decision || null;
+        saltkinAI.source = 'FALLBACK';
+        saltkinAI.error = 'untrusted_strategy_card';
+        say('b', 'Saltkin AI returned no trusted strategy card. Deterministic strategy takes over.');
+        updateAIWait('doctrine', {
+          fallback: true,
+          title: 'Untrusted card refused',
+          detail: 'Only one of the three program-generated strategy cards may be selected.',
+          footer: 'Fallback is explicit; the rules remain authoritative.'
+        });
+        renderFeed();
+        refresh();
+        setTimeout(function () {
+          if (requestMatch === matchId && seq === saltkinAI.requestSeq) endAIWait('doctrine');
+        }, 650);
+        return;
+      }
+      saltkinAI.doctrine = chosenCard;
+      saltkinAI.decision = response.decision;
       saltkinAI.source = response.meta.source || 'LLM';
       saltkinAI.model = response.meta.model || null;
       saltkinAI.latencyMs = response.meta.latencyMs || 0;
@@ -328,7 +369,7 @@
       saltkinAI.beaconAtIssue = game.tiles[game.beacon].owner;
       saltkinAI.seasonAtIssue = game.season;
       saltkinAI.eventsAtIssue = game.targetHistory.length;
-      say('b', 'Saltkin doctrine: ' + response.decision.stance + ' · ' + response.decision.intent);
+      say('b', 'Saltkin intent: ' + chosenCard.intent + ' · ' + chosenCard.region + '.');
       endAIWait('doctrine');
       renderFeed();
       refresh();
@@ -336,13 +377,14 @@
       if (requestMatch !== matchId || seq !== saltkinAI.requestSeq) return;
       saltkinAI.pending = false;
       saltkinAI.doctrine = null;
+      saltkinAI.decision = null;
       saltkinAI.uses = 0;
       saltkinAI.source = 'FALLBACK';
       saltkinAI.error = (err && err.code) || 'request_failed';
       say('b', 'Saltkin AI fallback (' + saltkinAI.error + '). Deterministic strategy remains active.');
       updateAIWait('doctrine', {
         fallback: true,
-        title: 'Signal lost — field doctrine takes over',
+        title: 'Signal lost — fallback card takes over',
         detail: 'The deterministic Saltkin commander will continue without hidden advantages.',
         footer: 'Fallback is explicit; the turn remains reproducible.'
       });
@@ -373,12 +415,19 @@
   }
 
   // ============================================================== ordering
-  function spent() {
-    return E.planCost(game, 1, orders, supportRequested).total;
+  function tokenCount(side) {
+    return game && game.tokens ? Number(game.tokens[side] || 0) : 0;
+  }
+
+  function queuedBoosts() {
+    return orders.filter(function (order) { return !!order.boosted; }).length;
   }
 
   function fieldPreview(extra) {
-    return E.commandPreview(game, 1, extra ? orders.concat(extra) : orders);
+    var plan = extra ? orders.concat(extra) : orders;
+    if (typeof E.commandPreview === 'function') return E.commandPreview(game, 1, plan);
+    return { ok: plan.length <= E.FIELD_COMMANDS, commands: plan.length,
+      reason: 'Only ' + E.FIELD_COMMANDS + ' commands may be queued.' };
   }
 
   function fieldSpent() {
@@ -393,23 +442,23 @@
 
   function tryOrder(i) {
     if (interactionLocked() || game.over) return;
+    if (orders.length >= E.FIELD_COMMANDS) {
+      rejectOrder(i, 'Both secret command slots are filled. Remove one to change the plan.');
+      return;
+    }
     var from = null;
     if (tool === 'expand') {
       if (orders.some(function (o) { return o.type === 'expand' && o.to === i; })) { rejectOrder(i, 'Already claiming that square.'); return; }
       from = E.canExpand(game, 1, i, orders);
       if (from == null) { rejectOrder(i, 'You can only settle empty land next to ground you already hold.'); return; }
-    } else if (tool === 'fortify') {
-      if (orders.some(function (o) { return o.type === 'fortify' && o.to === i; })) {
-        rejectOrder(i, 'A square can be fortified only once per turn.');
+    } else if (tool === 'guard') {
+      if (orders.some(function (o) { return o.type === 'guard' && o.to === i; })) {
+        rejectOrder(i, 'A square can be guarded only once per turn.');
         return;
       }
-      from = E.canFortify(game, 1, i);
+      from = E.canGuard(game, 1, i);
       if (from == null) {
-        if (game.tiles[i] && game.tiles[i].owner === 1 && game.supply[i] !== 1)
-          rejectOrder(i, 'Cut-off ground cannot be fortified. Restore its Relay or capital connection first.');
-        else if (game.tiles[i] && game.tiles[i].owner === 1 && game.tiles[i].str >= E.MAX_STRENGTH)
-          rejectOrder(i, 'That square is already at the strength cap of ' + E.MAX_STRENGTH + '.');
-        else rejectOrder(i, 'Fortify a supplied square you hold.');
+        rejectOrder(i, 'Guard a square you already hold.');
         return;
       }
     } else {
@@ -429,12 +478,6 @@
       rejectOrder(i, command.reason);
       return;
     }
-    var plan = E.planCost(game, 1, orders.concat(candidate), supportRequested);
-    var budget = E.availableBudget(game, 1);
-    if (plan.total > budget) {
-      rejectOrder(i, 'Not enough available supply. This plan costs ' + plan.total + '; you have ' + budget + '.');
-      return;
-    }
     orders.push(candidate);
     refresh();
   }
@@ -442,29 +485,39 @@
   function removeOrder(k) {
     if (interactionLocked()) return;
     orders.splice(k, 1);
-    if (!E.supportType(game, 1, orders)) supportRequested = false;
     refresh();
   }
 
-  function toggleSupport() {
-    if (interactionLocked()) return;
-    var type = E.supportType(game, 1, orders);
-    if (!type) return;
-    var next = !supportRequested;
-    var plan = E.planCost(game, 1, orders, next);
-    var budget = E.availableBudget(game, 1);
-    if (next && plan.total > budget) {
-      say('', 'Operation Support needs ' + E.SUPPORT_COST + ' more supply; this plan would cost ' + plan.total + '.');
+  function toggleBoostNext() {
+    if (interactionLocked() || !game || game.over) return;
+    if (!boostNext && queuedBoosts() >= tokenCount(1)) {
+      say('', 'No uncommitted supply token is available. Remove a ◆ from another command first.');
       renderFeed();
       return;
     }
-    supportRequested = next;
+    boostNext = !boostNext;
+    refresh();
+  }
+
+  function toggleOrderBoost(k) {
+    if (interactionLocked() || !game || game.over || !orders[k]) return;
+    if (!orders[k].boosted && queuedBoosts() >= tokenCount(1)) {
+      say('', 'Both available supply tokens are already committed.');
+      renderFeed();
+      return;
+    }
+    orders[k].boosted = !orders[k].boosted;
     refresh();
   }
 
   // =========================================================== turn cycle
   function endTurn() {
     if (interactionLocked() || game.over) return;
+    if (orders.length !== E.FIELD_COMMANDS) {
+      say('', 'Seal exactly ' + E.FIELD_COMMANDS + ' commands before resolving the turn.');
+      renderFeed();
+      return;
+    }
     busy = true;
     var run = startTurnRun();
     beginAIWait('orders', 'orders');
@@ -476,14 +529,13 @@
     if (!isCurrentRun(run)) return;
     var plan = CF.bot.plan(game, 2, forceTurtle, saltkinAI.doctrine);
     lastBotMood = plan.mood;
-    lastBotEffort = plan.effort;
+    lastBotEffort = plan.card || plan.strategy || plan.effort || null;
     if (saltkinAI.doctrine) saltkinAI.uses++;
 
-    orders.support = supportRequested;
     var res = E.resolveTurn(game, orders, plan.orders);
     game = res.state;
     orders = [];
-    supportRequested = false;
+    boostNext = false;
     R.setState(game);
     R.setPreview([]);
     R.push(res.fx);
@@ -513,7 +565,7 @@
   function phaseDirector(run) {
     if (!isCurrentRun(run)) return;
     var limitReached = game.stats.length >= E.MAX_TURNS;
-    if (!game.over && !limitReached && game.turn % 3 === 0 && !paused) {
+    if (!game.over && !limitReached && game.turn % 2 === 0 && game.turn < E.MAX_TURNS && !paused) {
       beginAIWait('director', 'director');
       scheduleRun(run, function () { requestDirector(run); }, 260);
       return;
@@ -536,21 +588,30 @@
       });
       refresh();
     } catch (err) {
-      var immediate = D.decide(game);
-      immediate.source = 'FALLBACK';
-      immediate.reasoning = 'Source: FALLBACK · counterfactual_error\n\n' + immediate.reasoning;
+      var immediate = null;
+      try { immediate = D.decide(game); } catch (fallbackErr) { immediate = null; }
+      if (immediate) {
+        immediate.source = 'FALLBACK';
+        immediate.reasoning = 'Source: FALLBACK · counterfactual_error\n\n' + immediate.reasoning;
+      }
       directorAudit = { prepared: null, source: 'FALLBACK', error: 'counterfactual_error' };
-      finishDirector(run, immediate, 'Counterfactual table unavailable — safe baseline selected.');
+      finishDirector(run, immediate, immediate
+        ? 'Counterfactual table unavailable — safe baseline selected.'
+        : 'No safe world change is available — Cinder leaves the map unchanged this season.');
       return;
     }
 
-    if (!prepared.candidates.length) {
+    if (prepared.candidates.length < 3) {
       var emptyFallback = prepared.baseline;
-      emptyFallback.source = 'FALLBACK';
-      emptyFallback.reasoning = 'Source: FALLBACK · no_safe_candidates\n\n' + emptyFallback.reasoning;
       directorAudit.source = 'FALLBACK';
-      directorAudit.error = 'no_safe_candidates';
-      finishDirector(run, emptyFallback, 'No safe candidate survived validation — safe baseline selected.');
+      directorAudit.error = emptyFallback ? 'insufficient_distinct_candidates' : 'no_safe_candidates';
+      if (emptyFallback) {
+        emptyFallback.source = 'FALLBACK';
+        emptyFallback.reasoning = 'Source: FALLBACK · insufficient_distinct_candidates\n\n' + emptyFallback.reasoning;
+      }
+      finishDirector(run, emptyFallback, emptyFallback
+        ? 'Fewer than three distinct safe choices remain — deterministic safe baseline selected.'
+        : 'No safe world change remains — Cinder leaves the map unchanged this season.');
       return;
     }
 
@@ -591,7 +652,7 @@
     function commit() {
       if (!isCurrentRun(run)) return;
       endAIWait('director');
-      queueDirectorEvent(ev);
+      if (ev) queueDirectorEvent(ev);
       finalizeTurn(run);
     }
     if (fallbackMessage) {
@@ -713,15 +774,16 @@
 
   function legalTargetsForTool() {
     if (!game || game.over || interactionLocked()) return [];
-    var result = [], budget = E.availableBudget(game, 1);
+    if (orders.length >= E.FIELD_COMMANDS) return [];
+    var result = [];
     for (var i = 0; i < game.tiles.length; i++) {
       var from = null, special = false;
       if (tool === 'expand') {
         if (orders.some(function (o) { return o.type === 'expand' && o.to === i; })) continue;
         from = E.canExpand(game, 1, i, orders);
-      } else if (tool === 'fortify') {
-        if (orders.some(function (o) { return o.type === 'fortify' && o.to === i; })) continue;
-        from = E.canFortify(game, 1, i);
+      } else if (tool === 'guard') {
+        if (orders.some(function (o) { return o.type === 'guard' && o.to === i; })) continue;
+        from = E.canGuard(game, 1, i);
       } else {
         var used = orders.filter(function (o) { return o.type === 'raid' && o.to === i; })
           .map(function (o) { return o.from; });
@@ -730,43 +792,35 @@
       }
       if (from == null) continue;
       var candidate = { type: tool, to: i, from: from };
-      var trial = orders.concat(candidate);
-      var plan = E.planCost(game, 1, trial, supportRequested);
-      if (plan.ok && plan.total <= budget) result.push({ i: i, special: special });
+      var plan = fieldPreview(candidate);
+      if (plan.ok) result.push({ i: i, special: special });
     }
     return result;
   }
 
   function refresh() {
     if (!game) return;
-    var gross = E.income(game, 1), budget = E.availableBudget(game, 1), sp = spent();
+    var tokens = 0, committed = 0;
 
     $('hud-turn').textContent = Math.min(game.turn, E.MAX_TURNS);
     $('hud-season').textContent = game.season;
-    $('hud-a-land').textContent = E.landCount(game, 1);
-    $('hud-b-land').textContent = E.landCount(game, 2);
+    $('hud-a-land').textContent = E.suppliedLandCount(game, 1);
+    $('hud-b-land').textContent = E.suppliedLandCount(game, 2);
     $('hud-a-bp').style.width = Math.min(100, game.bp[1] / E.BEACON_TO_WIN * 100) + '%';
     $('hud-b-bp').style.width = Math.min(100, game.bp[2] / E.BEACON_TO_WIN * 100) + '%';
     $('hud-a-bplabel').textContent = game.bp[1] + ' / ' + E.BEACON_TO_WIN;
     $('hud-b-bplabel').textContent = game.bp[2] + ' / ' + E.BEACON_TO_WIN;
 
-    $('hud-income').textContent = budget;
-    $('hud-gross').textContent = gross;
-    $('hud-reserve').textContent = game.reserve && game.reserve[1] || 0;
-    $('hud-spent').textContent = sp;
-    $('hud-left').textContent = Math.max(0, budget - sp);
+    $('hud-tokens').textContent = '—';
+    [].forEach.call($('hud-token-pips').querySelectorAll('i'), function (pip, index) {
+      pip.classList.toggle('full', index < tokens - committed);
+      pip.classList.toggle('committed', index >= tokens - committed && index < tokens);
+    });
     $('hud-command-used').textContent = fieldSpent();
     $('hud-command-left').textContent = Math.max(0, E.FIELD_COMMANDS - fieldSpent());
-    var fill = $('hud-spendfill');
-    fill.style.width = budget ? Math.min(100, sp / budget * 100) + '%' : '0%';
-    fill.classList.toggle('over', sp > budget);
-
-    var rc = E.raidCost(game);
-    $('cost-raid').textContent = rc;
-    $('cost-raid').classList.toggle('raised', rc > E.COST.raid);
 
     renderOrders();
-    renderSupport();
+    renderBoost();
     renderPlayerEffort();
     renderMods();
     renderWarning();
@@ -774,9 +828,10 @@
     renderConsole();
     R.setPreview(orders);
     R.setLegalTargets(legalTargetsForTool(), tool);
-    $('btn-end-label').textContent = orders.length
-      ? 'RESOLVE ' + orders.length + (orders.length === 1 ? ' ORDER' : ' ORDERS') + ' · ' + sp + ' SUPPLY'
-      : 'END TURN · HOLD';
+    $('btn-end-label').textContent = orders.length === E.FIELD_COMMANDS
+      ? 'SEAL & RESOLVE 2 COMMANDS'
+      : 'QUEUE ' + (E.FIELD_COMMANDS - orders.length) + ' MORE COMMAND' +
+        (E.FIELD_COMMANDS - orders.length === 1 ? '' : 'S');
     syncControls();
   }
 
@@ -790,121 +845,54 @@
       ul.appendChild(li);
       return;
     }
-    var command = fieldPreview();
-    if (command.redeploys) {
-      var redeploy = document.createElement('li');
-      redeploy.className = 'redeploy';
-      redeploy.innerHTML = '<span class="oi">↻</span><span>Redeploy to ' + command.main +
-        '</span><span class="oc">−' + E.MOBILIZATION_COST + ' · 1 CMD</span>';
-      redeploy.title = 'Changing route consumes one Field Command and mobilization supply; remove the queued order to cancel it.';
-      ul.appendChild(redeploy);
-    } else if (command.mobilizationCost) {
-      var mobilize = document.createElement('li');
-      mobilize.className = 'mobilize';
-      mobilize.innerHTML = '<span class="oi">⚑</span><span>Mobilize second command</span><span class="oc">−' +
-        command.mobilizationCost + '</span>';
-      mobilize.title = 'The second Field Command costs additional supply to mobilize.';
-      ul.appendChild(mobilize);
-    }
     orders.forEach(function (o, k) {
       var li = document.createElement('li');
       li.className = o.type;
-      var icon = o.type === 'expand' ? '✚' : o.type === 'fortify' ? '⛨' : '⚔';
+      var icon = o.type === 'expand' ? '✚' : o.type === 'guard' ? '◇' : '⚔';
       var label = o.type === 'raid'
         ? E.coord(game, o.from) + ' → ' + E.coord(game, o.to)
         : E.coord(game, o.to);
       li.innerHTML = '<span class="oi">' + icon + '</span><span>' + U.cap(o.type) + ' ' + label +
-                     '</span><span class="oc">−' + E.costOf(game, o.type) + '</span>' +
-                     '<button class="order-remove" type="button" aria-label="Remove ' + U.cap(o.type) +
+                     '</span><button class="order-remove" type="button" aria-label="Remove ' + U.cap(o.type) +
                      ' order at ' + E.coord(game, o.to) + '">×</button>';
       li.querySelector('.order-remove').onclick = function () { removeOrder(k); };
       ul.appendChild(li);
     });
-    var support = E.supportType(game, 1, orders);
-    if (supportRequested && support) {
-      var supportRow = document.createElement('li');
-      supportRow.className = 'support';
-      supportRow.innerHTML = '<span class="oi">★</span><span>' +
-        (support === 'march' ? 'March Supply' : 'Siege Support') +
-        '</span><span class="oc">−' + E.SUPPORT_COST + '</span>';
-      supportRow.title = 'Click Operation Support above to remove this upgrade.';
-      ul.appendChild(supportRow);
-    }
   }
 
-  function renderSupport() {
-    var button = $('btn-support');
-    var type = E.supportType(game, 1, orders);
-    if (!type) supportRequested = false;
-    button.disabled = !type;
-    button.classList.toggle('active', !!(type && supportRequested));
-    var title = button.querySelector('b'), detail = button.querySelector('span');
-    title.textContent = type === 'march' ? 'MARCH SUPPLY · +' + E.SUPPORT_COST
-      : type === 'siege' ? 'SIEGE SUPPORT · +' + E.SUPPORT_COST
-      : 'OPERATION SUPPORT · +' + E.SUPPORT_COST;
-    detail.textContent = type === 'march' ? 'Second chained Expand starts at strength 2'
-      : type === 'siege' ? 'Coordinated Raid gains +1 attack'
-      : 'Queue a chained Expand or coordinated Raid';
+  function renderBoost() {
+    $('btn-boost').classList.add('hidden');
   }
 
   function renderPlayerEffort() {
     var el = $('player-effort');
-    var preview = fieldPreview();
-    var current = game.strategy && game.strategy[1];
-    el.classList.toggle('redeploy', preview.redeploys > 0);
-    if (!current && !orders.length) {
-      el.textContent = 'ASH SURGE · ' + game.opening.route + ' · FIRST ORDER LOCKS 3 TURNS';
-      return;
-    }
-    var main = preview.main || current && current.main || game.opening.route;
-    var until = preview.untilTurn || current && current.untilTurn || game.turn + E.EFFORT_HORIZON - 1;
-    if (preview.redeploys) {
-      el.textContent = 'REDEPLOY → ' + main + ' · ACTION USES BOTH COMMANDS · LOCK THROUGH T' + until;
-    } else if (until >= game.turn) {
-      el.textContent = 'MAIN EFFORT · ' + main + ' · LOCKED THROUGH T' + until;
-    } else {
-      el.textContent = 'MAIN EFFORT · ' + main + ' · REDEPLOY AVAILABLE FOR 1 COMMAND';
-    }
+    var focusedRaid = orders.length === 2 && orders.every(function (o) { return o.type === 'raid'; }) &&
+      orders[0].to === orders[1].to;
+    var chain = orders.length === 2 && orders.every(function (o) { return o.type === 'expand'; }) &&
+      orders[1].from === orders[0].to;
+    el.classList.remove('redeploy');
+    el.textContent = focusedRaid ? 'FOCUSED RAID · BREAKS ONE GUARD'
+      : chain ? 'CONCENTRATED OPERATION · TWO-TILE ADVANCE'
+      : 'ISSUE EXACTLY TWO COMMANDS · ' + orders.length + ' / 2 SEALED';
   }
 
   function renderMods() {
     var box = $('modlist');
     box.innerHTML = '';
-    var m = game.mods;
     function tag(txt) { var d = document.createElement('div'); d.className = 'mod'; d.textContent = txt; box.appendChild(d); }
-    if (m.ashfall > 0) tag('ASHFALL · raids cost double · ' + m.ashfall + 'T');
-    if (m.rockCooled > 0) tag('ROCK COOLED · height gives nothing · ' + m.rockCooled + 'T');
-    if (m.storm > 0) tag('STORM · the weather favours the loser · ' + m.storm + 'T');
-    if (game.opening && game.turn <= game.opening.untilTurn)
-      tag('ASH SURGE · ' + game.opening.route + ' ROUTE · +1 SUPPLIED FERTILITY · THROUGH T' + game.opening.untilTurn);
-    if (game.pressure && game.pressure.staleTurns >= 2)
-      tag('CINDER PRESSURE · stillness ' + game.pressure.staleTurns + 'T');
-    if (game.pressure && game.pressure.bridgeTurns > 0)
-      tag('CENTRAL CROSSING OPEN · ' + game.pressure.bridgeTurns + 'T');
-    var cut = 0;
-    for (var i = 0; i < game.tiles.length; i++)
-      if (game.tiles[i].owner === 1 && game.supply[i] !== 1) cut++;
-    if (cut) tag(U.plural(cut, 'square') + ' CUT OFF · starving');
+    if (game.pending && game.pending.affected && game.pending.affected.length)
+      tag('BEACON MOVES TO ' + E.coord(game, game.pending.affected[0]));
   }
 
   function renderWarning() {
     var bar = $('warnbar'), p = game.pending;
-    if (!p && game.pressure && game.pressure.staleTurns >= 2) {
-      bar.classList.remove('hidden');
-      $('warn-title').textContent = 'WARNING · CINDER PRESSURE';
-      $('warn-sub').textContent = game.pressure.bridgeTurns > 0
-        ? 'A temporary central crossing is open. Break through before the caldera takes it back.'
-        : game.pressure.staleTurns >= 3
-          ? 'Overbuilt front lines are eroding. Continued stillness will open a temporary central crossing.'
-          : 'Two turns without territorial change. Cinder is preparing an attack window.';
-      $('warn-count').textContent = game.pressure.bridgeTurns > 0
-        ? game.pressure.bridgeTurns + ' turns left' : 'pressure ' + game.pressure.staleTurns;
-      return;
-    }
     if (!p) { bar.classList.add('hidden'); return; }
     bar.classList.remove('hidden');
     $('warn-title').textContent = 'WARNING · ' + EV.nameOf(p.template) + ' · INTENSITY ' + 'I'.repeat(p.intensity);
-    $('warn-sub').textContent = p.warning;
+    var exact = Array.isArray(p.affected) && p.affected.length
+      ? p.affected.map(function (i) { return E.coord(game, i); }).join(', ')
+      : (p.region ? EV.regionName(p.region).toUpperCase() : 'MARKED TILES');
+    $('warn-sub').textContent = 'EXACT TILES · ' + exact + ' · ' + p.warning;
     var away = p.fireTurn - game.turn;
     $('warn-count').textContent = away <= 0 ? 'this turn' : away === 1 ? 'end of this turn' : 'in ' + away + ' turns';
   }
@@ -942,10 +930,26 @@
 
   function showGameOver() {
     var o = game.over;
+    var overlay = $('gameover');
+    var aLand = E.landCount(game, 1), bLand = E.landCount(game, 2);
+    $('go-a-bp').textContent = game.bp[1];
+    $('go-b-bp').textContent = game.bp[2];
+    $('go-a-land').textContent = aLand;
+    $('go-b-land').textContent = bLand;
+    $('go-kicker').textContent = game.stats.length >= E.MAX_TURNS
+      ? 'FINAL RECKONING · TURN ' + E.MAX_TURNS
+      : 'DECISIVE VICTORY · TURN ' + game.stats.length;
+    $('go-verdict').textContent = /capital/i.test(o.why) ? 'CAPITAL CAPTURE'
+      : game.bp[1] !== game.bp[2] ? 'BEACON SCORE'
+      : aLand !== bLand ? 'TERRITORY TIE-BREAK' : 'THE RING REMAINS EVEN';
     $('go-title').textContent = o.winner === 0 ? 'A DRAWN RING'
       : o.winner === 1 ? 'THE ASHFARERS HOLD' : 'THE SALTKIN HOLD';
-    $('go-sub').textContent = o.why + ' Cinder is still working.';
-    $('gameover').classList.remove('hidden');
+    $('go-sub').textContent = o.why;
+    overlay.classList.remove('winner-a', 'winner-b', 'winner-draw', 'settling');
+    overlay.classList.add(o.winner === 1 ? 'winner-a' : o.winner === 2 ? 'winner-b' : 'winner-draw');
+    overlay.classList.remove('hidden');
+    void overlay.offsetWidth;
+    overlay.classList.add('settling');
     if (!profileSaved) {
       CF.profile.completeMatch(game);
       profileSaved = true;
@@ -1008,28 +1012,30 @@
     $('con-ai-status').classList.toggle('fallback', !aiHealth.ready || saltkinAI.source === 'FALLBACK' ||
       (directorAudit && directorAudit.source === 'FALLBACK'));
 
-    var doctrineText = saltkinAI.doctrine ? JSON.stringify(saltkinAI.doctrine, null, 2) : 'heuristic fallback';
+    var doctrineText = saltkinAI.doctrine ? JSON.stringify({
+      selected_card: saltkinAI.doctrine,
+      evidence_used: saltkinAI.decision && saltkinAI.decision.evidence_used || [],
+      explanation: saltkinAI.decision && saltkinAI.decision.explanation || ''
+    }, null, 2) : 'deterministic fallback card';
     $('con-doctrine').textContent = doctrineText + '\n\nsource=' + saltkinAI.source +
-      ' · used=' + saltkinAI.uses + '/3' + (saltkinAI.requestId ? ' · request=' + saltkinAI.requestId : '');
+      ' · used=' + saltkinAI.uses + '/2' + (saltkinAI.requestId ? ' · request=' + saltkinAI.requestId : '');
     var playerProfile = CF.profile.build(game, CF.profile.load());
     $('con-profile').textContent = JSON.stringify(playerProfile.features, null, 2) +
       '\n\nEVIDENCE\n' + JSON.stringify(playerProfile.evidence, null, 2);
-    var effortText = lastBotEffort
-      ? ' · MAIN ' + lastBotEffort.main + ' / ' + lastBotEffort.secondary + ' · through T' + lastBotEffort.untilTurn
-      : '';
+    var card = saltkinAI.doctrine || lastBotEffort;
+    var cardText = card && (card.intent || card.posture)
+      ? (card.intent || card.posture) + ' · ' + (card.region || card.front || 'BEACON') : String(lastBotMood || 'BALANCED').toUpperCase();
     $('saltkin-intent').textContent = saltkinAI.doctrine
-      ? 'SALTKIN AI · ' + saltkinAI.doctrine.stance + ' / ' + saltkinAI.doctrine.objective + ' · ' + saltkinAI.doctrine.intent
-        + effortText
-      : 'SALTKIN AI · FALLBACK · deterministic ' + lastBotMood + ' strategy' + effortText;
+      ? 'SALTKIN AI · ' + cardText + ' · FOR 2 TURNS'
+      : 'SALTKIN AI · FALLBACK · ' + cardText;
 
     if (!directorAudit || !directorAudit.prepared) {
       $('con-candidates').textContent = 'no season evaluated yet';
     } else {
       var prepared = directorAudit.prepared;
       var candidateLines = prepared.candidates.map(function (c) {
-        return c.id + ' ' + EV.nameOf(c.event.template) + ' I'.repeat(c.event.intensity) + ' ' + c.event.region.toUpperCase() +
-          ' · raids ' + c.summary.raids_per_turn.median + ' · captures ' + c.summary.captures.median +
-          ' · gap ' + c.summary.land_gap.median;
+        return c.id + ' · ' + EV.nameOf(c.event.template) + ' · ' +
+          E.coord(game, c.event.affected[0]) + ' · ' + c.event.region.toUpperCase();
       });
       candidateLines.push('');
       candidateLines.push('SHADOW · ' + EV.nameOf(prepared.baseline.template) + ' I'.repeat(prepared.baseline.intensity) +
@@ -1102,10 +1108,10 @@
     });
 
     $('btn-end').onclick = endTurn;
-    $('btn-support').onclick = toggleSupport;
+    $('btn-boost').onclick = toggleBoostNext;
     $('btn-clear').onclick = function () {
       if (interactionLocked()) return;
-      orders = []; supportRequested = false; refresh();
+      orders = []; boostNext = false; refresh();
     };
     $('go-again').onclick = function () { if (!interactionLocked()) newGame((Math.random() * 1e9) | 0); };
     $('con-new').onclick = function () { if (!interactionLocked()) newGame((Math.random() * 1e9) | 0); };
@@ -1163,7 +1169,6 @@
         fireTurn: game.pending ? game.pending.fireTurn : game.turn,
         mainTarget: 0
       };
-      ev.warning = EV.warningFor(ev);
       var approval = CF.validator.approveOverride(game, ev);
       if (!approval.ok) {
         say('world', 'Designer override refused — ' + approval.fails.join('; ') + '.');
@@ -1171,9 +1176,11 @@
         refresh();
         return;
       }
+      ev = approval.ev || ev;
+      ev.warning = EV.warningFor(ev);
       ev.reasoning = 'Overridden by the designer.\n\nGuardrails: passed.';
       ev.report = game.pending ? game.pending.report : '(no report — human override)';
-      ev.mainTarget = approval.mainTarget;
+      ev.mainTarget = approval.mainTarget || ev.mainTarget;
 
       if (game.pending) {
         game.pending = ev;
@@ -1211,10 +1218,10 @@
       if (interactionLocked() || e.repeat || e.isComposing ||
           /^(button|input|select|textarea)$/.test(tag) || (target && target.isContentEditable)) return;
       if (e.key === '1') setTool('expand');
-      else if (e.key === '2') setTool('fortify');
+      else if (e.key === '2') setTool('guard');
       else if (e.key === '3') setTool('raid');
       else if (e.key === 'Enter') endTurn();
-      else if (e.key === 'Escape') { orders = []; supportRequested = false; refresh(); }
+      else if (e.key === 'Escape') { orders = []; boostNext = false; refresh(); }
     });
   }
 
@@ -1230,18 +1237,11 @@
       rows.push(['terrain', 'open water']);
     } else {
       rows.push(['holder', t.owner ? E.SIDE[t.owner] : 'nobody']);
-      rows.push(['strength', t.str]);
-      rows.push(['height', t.elev + (game.mods.rockCooled > 0 ? ' (giving nothing)' : '')]);
-      rows.push(['fertility', t.fert + (t.crater ? ' · ash' : '')]);
-      rows.push(['defence', E.defenceValue(game, i)]);
-      if (t.owner && t.owner !== 3 && game.supply[i] !== t.owner) rows.push(['supply', 'CUT OFF']);
-      if (t.capital) rows.push(['', 'CAPITAL']);
-      if (t.relay) rows.push(['relay', t.relay + ' · SUPPLY RELAY']);
-      if (t.temporaryBridge) rows.push(['', 'TEMPORARY CROSSING']);
+      rows.push(['terrain', 'land']);
+      if (t.capital) rows.push(['capital', 'requires 2 effective Raids']);
     }
     if (i === game.beacon) {
-      var beaconSupplied = t.owner && game.supply[i] === t.owner;
-      rows.push(['', 'THE BEACON' + (t.owner && !beaconSupplied ? ' · NO SUPPLY / NO SCORE' : '')]);
+      rows.push(['', 'THE BEACON · OWNER SCORES']);
     }
 
     var hint = '';
@@ -1251,30 +1251,18 @@
           .map(function (o) { return o.from; });
         var src = E.canRaid(game, 1, i, used);
         if (src != null) {
-          var sources = used.concat([src]);
-          var attack = E.coordinatedAttackValue(game, sources, 1);
-          var coordinated = sources.length >= 2 && sources.every(function (from) { return game.supply[from] === 1; });
-          if (coordinated && supportRequested && E.supportType(game, 1, orders) === 'siege')
-            attack += E.SIEGE_SUPPORT_BONUS;
-          hint = (coordinated ? 'coordinated raid +2 from ' : 'raid from ') + E.coord(game, src) + ': ' +
-            attack + ' against ' + E.defenceValue(game, i) +
-            (attack > E.defenceValue(game, i) ? ' — it falls' : ' — it holds');
+          var count = used.length + 1;
+          hint = count + (count === 1 ? ' Raid queued' : ' Raids queued') +
+            (t.capital ? ' · capital needs 2 effective Raids' : ' · captures unless Guarded');
         }
       } else if (tool === 'expand') {
         var expandFrom = E.canExpand(game, 1, i, orders);
         if (expandFrom != null) {
           var chained = game.tiles[expandFrom].owner !== 1;
-          hint = (chained ? 'continue advance' : 'settle') + ' for ' + E.COST.expand + ', starts at strength 1';
+          hint = chained ? 'continue a two-step advance' : 'claim this neutral tile';
         }
-      } else if (tool === 'fortify') {
-        if (E.canFortify(game, 1, i) != null) hint = 'fortify for ' + E.COST.fortify + ' → strength ' + Math.min(E.MAX_STRENGTH, t.str + E.FORTIFY_GAIN);
-      }
-      if (t.relay && t.owner === 2) {
-        var impact = E.relayImpact(game, 1, i);
-        if (impact && (impact.tiles || impact.beacon)) {
-          hint += (hint ? ' · ' : '') + 'controlling this Relay cuts ' + impact.tiles + ' Saltkin squares, ' +
-            impact.fertility + ' fertility' + (impact.beacon ? ', and Beacon supply' : '');
-        }
+      } else if (tool === 'guard') {
+        if (E.canGuard(game, 1, i) != null) hint = 'cancel one Raid against this tile this turn';
       }
     }
 

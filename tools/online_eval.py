@@ -22,16 +22,16 @@ SALT_SCENARIOS = [
     ("beacon_lock", {"beacon_order_share": 0.82, "resolved_turns": 8}),
     ("north_arc", {"north_order_share": 0.78, "resolved_turns": 8}),
     ("supply_neglect", {"cut_off_tile_turns": 17, "owned_tile_turns": 80}),
-    ("high_ground", {"high_ground_fortify_spend": 12, "total_fortify_spend": 15}),
+    ("high_ground", {"high_ground_fortify_orders": 6, "total_fortify_orders": 8}),
     ("warning_push", {"warning_press_orders": 7, "warning_avoid_orders": 1}),
 ]
 
 DIRECTOR_SCENARIOS = [
-    ("stalemate", {"quiet": 6, "landGap": 0, "beaconStill": 5}),
-    ("runaway", {"quiet": 0, "landGap": 8, "incomeGap": 11}),
-    ("beacon_lock", {"quiet": 2, "landGap": 2, "beaconStill": 9}),
-    ("fragile_supply", {"quiet": 1, "landGap": 3, "cutOff": 7}),
-    ("low_variety", {"quiet": 3, "landGap": 1, "emptyLand": 2}),
+    ("stalemate", {"quietTurns": 6, "landGap": 0, "beaconStill": 5}),
+    ("runaway", {"quietTurns": 0, "landGap": 8, "tokenGap": 2}),
+    ("beacon_lock", {"quietTurns": 2, "landGap": 2, "beaconStill": 9}),
+    ("fragile_supply", {"quietTurns": 1, "landGap": 3, "cutOff": 7}),
+    ("low_variety", {"quietTurns": 3, "landGap": 1, "emptyLand": 2}),
 ]
 
 
@@ -49,8 +49,19 @@ def salt_payload(name: str, evidence: dict, run: int) -> dict:
             "last_match_tactic": "EXPAND",
         },
         "evidence": evidence,
+        "candidates": [
+            {"id": "S1", "front": "NORTH", "posture": "PRESS", "priority": "RELAY"},
+            {"id": "S2", "front": "SOUTH", "posture": "GROW", "priority": "BEACON"},
+            {"id": "S3", "front": "NORTH", "posture": "HOLD", "priority": "CAPITAL"},
+        ],
         "recentMatches": [],
-        "publicState": {"turn": 7, "land": {"ashfarers": 13, "saltkin": 13}},
+        "publicState": {
+            "turn": 7,
+            "maxTurns": 15,
+            "land": {"ashfarers": 13, "saltkin": 13},
+            "tokens": {"ashfarers": 1, "saltkin": 1, "cap": 2},
+            "fertileSites": {"ashfarers": {"owned": 1, "supplied": 1}, "saltkin": {"owned": 1, "supplied": 1}, "open": 1},
+        },
     }
 
 
@@ -59,12 +70,12 @@ def director_payload(name: str, report: dict, run: int) -> dict:
     return {
         "report": report,
         "recentMemory": {},
-        "saltkinDoctrine": None,
-        "shadowBaseline": {"template": "rock_cools", "intensity": 2, "region": "centre"},
+        "saltkinStrategy": None,
+        "shadowBaseline": {"template": "forts_crack", "region": "centre", "affected": [15]},
         "candidates": [
-            {"id": "C1", "event": {"template": "rock_cools", "intensity": 2, "region": "centre"}, "counterfactual": {"raids_per_turn": {"median": 1.3}}},
-            {"id": "C2", "event": {"template": "storm", "intensity": 2, "region": "north"}, "counterfactual": {"land_gap": {"median": 2}}},
-            {"id": "C3", "event": {"template": "new_island", "intensity": 2, "region": "centre"}, "counterfactual": {"beacon_contest": {"median": 1}}},
+            {"id": "C1", "event": {"template": "forts_crack", "region": "centre", "affected": [15]}, "score": 81, "counterfactual": {"raids_per_turn": {"median": 1.3}}},
+            {"id": "C2", "event": {"template": "land_rises", "region": "north", "affected": [7]}, "score": 72, "counterfactual": {"land_gap": {"median": 2}}},
+            {"id": "C3", "event": {"template": "bloom", "region": "centre", "affected": [20]}, "score": 68, "counterfactual": {"beacon_contest": {"median": 1}}},
         ],
         "scenario": name,
     }

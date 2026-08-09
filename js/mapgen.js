@@ -23,8 +23,7 @@ CF.mapgen = (function () {
     return {
       land: false, elev: 0, fert: 0, owner: 0, str: 0,
       capital: 0, crater: 0, born: 0,
-      route: null, bridge: null, relay: null, temporaryBridge: 0,
-      pressureReserved: 0
+      route: null, bridge: null, relay: null, fertileSite: 0
     };
   }
 
@@ -84,29 +83,16 @@ CF.mapgen = (function () {
       }
     }
 
-    // A central two-by-two cooled-lava bridge is reserved for Cinder Pressure.
-    // It starts as water and may open temporarily after prolonged stillness.
-    var pressureBridge = [];
-    for (var px = 6; px <= 7; px++) {
-      for (var py = 4; py <= 5; py++) {
-        var pi = idx(px, py);
-        pressureBridge.push(pi);
-        tiles[pi] = blankTile();
-        tiles[pi].pressureReserved = 1;
-      }
-    }
-
-    // Terrain value is mirrored exactly. Caldera-facing ground is fertile;
-    // seaward ground is higher, preserving the original risk/reward tension.
+    // Terrain is deliberately binary in Lite: normal ground or high ground.
+    // The west/east halves are rotational twins. This gives each capital one
+    // high/short approach and one low/long approach without favouring a side.
     for (var ti = 0; ti < W * H / 2; ti++) {
       var src = tiles[ti], dst = tiles[twin(ti)];
       if (src.land) {
-        var sy = (ti / W) | 0;
-        var outward = Math.abs(sy - CY) / CY;
-        var jitter = U.hash32(ti * 3121 + seed * 71) - 0.5;
-        src.elev = U.clamp(Math.round(1 + outward * 2.2 + jitter), 1, 3);
-        src.fert = U.clamp(Math.round(2.5 - outward * 1.8 + jitter * 1.4), 0, 3);
-        if (src.elev === 3) src.fert = Math.max(0, src.fert - 1);
+        var sx = ti % W, sy = (ti / W) | 0;
+        var onShortApproach = sx <= 6 && sy <= 3;
+        src.elev = onShortApproach ? 1 : 0;
+        src.fert = 0;
       }
       dst.land = src.land;
       dst.elev = src.elev;
@@ -129,8 +115,8 @@ CF.mapgen = (function () {
     Object.keys(relays).forEach(function (name) {
       relays[name].forEach(function (ri) {
         tiles[ri].relay = name;
-        tiles[ri].fert = 0;  // a tactical junction, never a bonus income point
-        tiles[ri].elev = 1;  // broad and attackable, not a new hill fortress
+        tiles[ri].fert = 0;  // a tactical junction, never a token source
+        tiles[ri].elev = 0;  // broad and attackable, not a new hill fortress
       });
     });
 
@@ -140,16 +126,25 @@ CF.mapgen = (function () {
     seat(tiles, capB, 2);
     seedHome(tiles, capA);
 
-    // One shared opening objective breaks strategic mirror-play without
-    // favouring a capital: both sides are the same distance from the chosen
-    // route and its Beacon. The other route remains the flank.
-    var openingFocus = U.hash32(seed * 65537 + 911) < 0.5 ? 'NORTH' : 'SOUTH';
-    var beacon = pickBeacon(tiles, capA, capB, seed, openingFocus);
+    // Supply is represented by a handful of visible sites, not arithmetic on
+    // every square. Each people begins on one mirrored site. A second mirrored
+    // pair lies beyond the near Relays on the longer, low-ground approaches.
+    // `fert` remains 1 on those sites as a compatibility/rendering hint; rules
+    // use only the explicit `fertileSite` flag.
+    [idx(1, 5), twin(idx(1, 5)), idx(5, 6), twin(idx(5, 6))].forEach(function (fi) {
+      tiles[fi].fertileSite = 1;
+      tiles[fi].fert = 1;
+      tiles[fi].elev = 0;
+    });
+
+    // v0.2 keeps the ring topology but removes Relay and fertile-site rules.
+    tiles.forEach(function (tile) { tile.relay = null; tile.fertileSite = 0; tile.fert = 0; });
+    relays = {};
+    var beacon = pickBeacon(tiles, capA, capB, seed);
     return {
       W: W, H: H, tiles: tiles,
       capitals: { 1: capA, 2: capB },
-      beacon: beacon, relays: relays, pressureBridge: pressureBridge,
-      openingFocus: openingFocus,
+      beacon: beacon, relays: relays,
       seed: seed | 0, rngSeed: holder.seed
     };
   }
@@ -159,9 +154,9 @@ CF.mapgen = (function () {
     t.land = true;
     t.owner = owner;
     t.capital = owner;
-    t.elev = 3;
-    t.fert = 2;
-    t.str = 6;
+    t.elev = 1;
+    t.fert = 0;
+    t.str = 4;
   }
 
   function seedHome(tiles, cap) {
@@ -191,20 +186,21 @@ CF.mapgen = (function () {
     return d;
   }
 
-  function pickBeacon(tiles, capA, capB, seed, openingFocus) {
+  function pickBeacon(tiles, capA, capB, seed) {
     var da = walkDistances(tiles, capA), db = walkDistances(tiles, capB);
     var bestScore = -Infinity, choices = [];
     for (var i = 0; i < tiles.length; i++) {
       var t = tiles[i];
       if (!t.land || t.owner || t.relay || da[i] < 0 || db[i] < 0) continue;
-      var lane = t.route === 'north' ? 'NORTH' : t.route === 'south' ? 'SOUTH'
-        : ((i / W) | 0) < H / 2 ? 'NORTH' : 'SOUTH';
-      if (lane !== openingFocus) continue;
-      var score = -Math.abs(da[i] - db[i]) * 20 + Math.min(da[i], db[i]) * 3 - t.fert;
+      // Six steps is reachable by a concentrated two-command march before
+      // the first warned event fires, so the opening objective can score and
+      // the 6-point game does not routinely run to the hard deadline.
+      var score = -Math.abs(da[i] - db[i]) * 20 - Math.abs(Math.min(da[i], db[i]) - 6) * 5
+        - (t.fertileSite ? 4 : 0) - (t.elev ? 1 : 0);
       if (score > bestScore) { bestScore = score; choices = [i]; }
       else if (score === bestScore) choices.push(i);
     }
-    if (!choices.length) return idx(6, openingFocus === 'NORTH' ? 2 : 7);
+    if (!choices.length) return idx(6, 2);
     return choices[Math.floor(U.hash32(seed * 104729) * choices.length)];
   }
 

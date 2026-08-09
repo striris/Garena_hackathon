@@ -15,32 +15,34 @@ SALT_PAYLOAD = {
     "snapshotTurn": 4,
     "profile": {"preferred_arc": "NORTH"},
     "evidence": {"north_order_share": 0.75, "resolved_turns": 3},
+    "candidates": [
+        {"id": "S1", "intent": "RAID", "region": "NORTH"},
+        {"id": "S2", "intent": "EXPAND", "region": "SOUTH"},
+        {"id": "S3", "intent": "DEFEND", "region": "BEACON"},
+    ],
     "recentMatches": [],
     "publicState": {"turn": 4},
 }
 
 SALT_DECISION = {
-    "stance": "ASSAULT",
-    "objective": "SUPPLY",
-    "target_region": "NORTH",
-    "risk": "MEDIUM",
-    "player_model": ["preferred_arc"],
-    "intent": "Pressure the exposed northern supply line.",
+    "selected_candidate": "S1",
     "evidence_used": ["north_order_share"],
+    "explanation": "The player has committed most settled orders north, so press that front toward its Relay.",
 }
 
 DIRECTOR_PAYLOAD = {
     "report": {"quiet": 4, "landGap": 1, "season": 2},
-    "candidates": [{"id": "C1", "event": {"template": "rock_cools"}}],
+    "candidates": [
+        {"id": "C1", "event": {"template": "beacon_moves", "region": "centre", "affected": [10]}},
+        {"id": "C2", "event": {"template": "beacon_moves", "region": "north", "affected": [11]}},
+        {"id": "C3", "event": {"template": "beacon_moves", "region": "south", "affected": [12]}},
+    ],
 }
 
 DIRECTOR_DECISION = {
     "selected_candidate": "C1",
-    "goal": "BREAK_STALEMATE",
     "evidence_used": ["quiet"],
-    "prediction": {"metric": "raids_per_turn", "direction": "increase", "horizon": 3},
-    "player_explanation": "Four quiet turns make lower defensive value the clearest intervention.",
-    "confidence": 0.78,
+    "explanation": "Four quiet turns make the visible fort cracks the clearest attacking window.",
 }
 
 
@@ -78,6 +80,27 @@ class AIServiceTests(unittest.TestCase):
         self.assertEqual(client.completions.calls[0]["model"], "openai/gpt-oss-120b")
         self.assertEqual(client.completions.calls[0]["messages"][0]["role"], "system")
 
+    def test_saltkin_rejects_unoffered_strategy_card(self):
+        invalid = dict(SALT_DECISION, selected_candidate="S9")
+        with self.assertRaises(AIServiceError) as caught:
+            validate_saltkin(invalid, SALT_PAYLOAD)
+        self.assertEqual(caught.exception.code, "unknown_candidate")
+
+    def test_saltkin_requires_exactly_three_trusted_cards(self):
+        service = AIService(client=FakeClient([SALT_DECISION]))
+        invalid = dict(SALT_PAYLOAD, candidates=SALT_PAYLOAD["candidates"][:2])
+        with self.assertRaises(AIServiceError) as caught:
+            service.saltkin(invalid)
+        self.assertEqual(caught.exception.code, "invalid_request")
+
+    def test_saltkin_rejects_executable_candidate_fields(self):
+        cards = [dict(card) for card in SALT_PAYLOAD["candidates"]]
+        cards[0]["target_tile"] = 99
+        service = AIService(client=FakeClient([SALT_DECISION]))
+        with self.assertRaises(AIServiceError) as caught:
+            service.saltkin(dict(SALT_PAYLOAD, candidates=cards))
+        self.assertEqual(caught.exception.code, "invalid_request")
+
     def test_director_rejects_unknown_candidate(self):
         invalid = dict(DIRECTOR_DECISION, selected_candidate="C99")
         with self.assertRaises(AIServiceError) as caught:
@@ -91,6 +114,28 @@ class AIServiceTests(unittest.TestCase):
         self.assertEqual(result["decision"], DIRECTOR_DECISION)
         self.assertEqual(result["season"], 2)
         self.assertEqual(client.completions.calls[0]["model"], "openai/gpt-oss-120b")
+
+    def test_director_requires_three_to_five_lite_candidates(self):
+        service = AIService(client=FakeClient([DIRECTOR_DECISION]))
+        with self.assertRaises(AIServiceError) as caught:
+            service.director({"report": DIRECTOR_PAYLOAD["report"], "candidates": DIRECTOR_PAYLOAD["candidates"][:2]})
+        self.assertEqual(caught.exception.code, "invalid_request")
+
+    def test_director_rejects_removed_event_family(self):
+        candidates = [dict(item) for item in DIRECTOR_PAYLOAD["candidates"]]
+        candidates[0] = {"id": "C1", "event": {"template": "forts_crack", "region": "centre", "affected": [10]}}
+        service = AIService(client=FakeClient([DIRECTOR_DECISION]))
+        with self.assertRaises(AIServiceError) as caught:
+            service.director(dict(DIRECTOR_PAYLOAD, candidates=candidates))
+        self.assertEqual(caught.exception.code, "invalid_request")
+
+    def test_director_requires_exact_affected_tiles(self):
+        candidates = [dict(item) for item in DIRECTOR_PAYLOAD["candidates"]]
+        candidates[0] = {"id": "C1", "event": {"template": "beacon_moves", "region": "centre"}}
+        service = AIService(client=FakeClient([DIRECTOR_DECISION]))
+        with self.assertRaises(AIServiceError) as caught:
+            service.director(dict(DIRECTOR_PAYLOAD, candidates=candidates))
+        self.assertEqual(caught.exception.code, "invalid_request")
 
     def test_timeout_is_an_explicit_failure(self):
         service = AIService(client=FakeClient([TimeoutError("too slow")]))

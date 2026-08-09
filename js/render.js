@@ -3,7 +3,7 @@
    Gameplay stays deterministic; visuals switch to sprite composition.
    ============================================================ */
 CF.render = (function () {
-  var U = CF.util, E = CF.engine, EV = CF.events, T = CF.theme;
+  var U = CF.util, E = CF.engine, T = CF.theme;
 
   var cv, ctx, dpr = 1;
   var resizeObserver = null, resizeFrame = 0;
@@ -13,7 +13,6 @@ CF.render = (function () {
   var particles = [];
   var rings = [];
   var flashes = {};
-  var rifts = [];
   var hover = -1;
   var previewOrders = [];
   var legalTargets = [];
@@ -179,15 +178,12 @@ CF.render = (function () {
           burst(f.at, sideColor(f.side), 18, 2.0);
           ring(f.at, '#fff0a8', 2.0, 620);
           break;
-        case 'settle3':
-          flash(f.at, sideColor(3), 700);
-          burst(f.at, sideColor(3), 16, 1.6);
-          break;
         case 'clash':
           flash(f.at, '#fff7d8', 420);
           burst(f.at, '#fff7d8', 14, 1.5);
           break;
         case 'fortify':
+        case 'guard':
           burst(f.at, '#88c7ff', 10, 1.0, -1.6);
           break;
         case 'starve':
@@ -209,6 +205,11 @@ CF.render = (function () {
         case 'bless':
           burst(f.at, '#8aff9d', 12, 1.3, -1.2);
           break;
+        case 'crack':
+          flash(f.at, '#ffb36b', 620);
+          burst(f.at, '#d9c09a', 16, 1.5, -0.8);
+          ring(f.at, '#ff9d62', 1.5, 620);
+          break;
         case 'quake':
           shake = Math.max(shake, f.power * 5);
           shakeT = performance.now();
@@ -216,21 +217,6 @@ CF.render = (function () {
         case 'shock':
           ring(f.at, '#ff6f3f', f.r || 2, 1100, true);
           lavaBurst(f.at, f.r || 2);
-          break;
-        case 'rift':
-          rifts.push({ line: f.line, dir: f.dir, region: f.region, born: performance.now() });
-          break;
-        case 'flood':
-          floodSweep(f.region);
-          break;
-        case 'skyDark':
-          for (var i = 0; i < 90; i++) ashFleck();
-          break;
-        case 'cool':
-          for (var j = 0; j < 40; j++) ashFleck('#a6cbdf');
-          break;
-        case 'storm':
-          for (var k = 0; k < 60; k++) ashFleck('#8fd0ff');
           break;
         case 'beaconMove':
           if (f.from != null) {
@@ -292,22 +278,6 @@ CF.render = (function () {
     }
   }
 
-  function ashFleck(color) {
-    particles.push({
-      x: Math.random() * geom.w, y: -10 - Math.random() * geom.h,
-      vx: -0.25 + Math.random() * 0.5, vy: 0.35 + Math.random() * 0.7,
-      g: 0, life: 1, decay: 0.0016, size: 0.8 + Math.random() * 1.7,
-      color: color || '#d6ceb0', drift: true
-    });
-  }
-
-  function floodSweep(region) {
-    for (var i = 0; i < state.tiles.length; i++) {
-      if (!CF.events.inRegion(state, i, region)) continue;
-      if (Math.random() < 0.5) burst(i, '#6fc2ff', 4, 1.0, -0.6);
-    }
-  }
-
   function loop(now) {
     requestAnimationFrame(loop);
     if (!ctx) return;
@@ -344,14 +314,13 @@ CF.render = (function () {
     drawLandShadow();
     drawTiles(t, now);
     drawTerritoryEdges();
-    drawRifts(now);
     drawBeacon(t);
+    drawPendingWarning(t);
     drawLegalTargets(t);
     drawOrders(t);
     drawHover();
     drawRings(now);
     drawParticles();
-    drawWeather(t);
     ctx.restore();
   }
 
@@ -424,7 +393,6 @@ CF.render = (function () {
       drawTileOwnership(r, tile, i);
       drawTileDeco(r, tile, seed);
       drawTileSprite(r, tile);
-      drawTileStrength(r, tile);
       drawTileOverlay(r, tile);
       drawTileFlash(r, i, now);
     }
@@ -440,7 +408,7 @@ CF.render = (function () {
     }
 
     var top = ctx.createLinearGradient(r.x, r.y, r.x, r.y + r.s);
-    top.addColorStop(0, 'rgba(255,255,255,' + (0.04 + tile.elev * 0.03) + ')');
+    top.addColorStop(0, 'rgba(255,255,255,' + (tile.elev > 0 ? 0.10 : 0.04) + ')');
     top.addColorStop(1, 'rgba(0,0,0,0.18)');
     ctx.fillStyle = top;
     ctx.fillRect(r.x, r.y, r.s, r.s);
@@ -451,17 +419,17 @@ CF.render = (function () {
 
     if (tile.elev > 0) {
       ctx.fillStyle = 'rgba(70,45,24,0.40)';
-      ctx.fillRect(r.x, r.y + r.s - Math.min(10, 2 + tile.elev * 2), r.s, Math.min(10, 2 + tile.elev * 2));
+      ctx.fillRect(r.x, r.y + r.s - 5, r.s, 5);
       ctx.fillStyle = 'rgba(255,237,196,0.72)';
-      for (var e = 0; e < tile.elev; e++) ctx.fillRect(r.x + 4 + e * 5, r.y + 4, 3, 3);
+      ctx.fillRect(r.x + 4, r.y + 4, 5, 3);
     }
   }
 
   function drawTileFertility(r, tile, seed, t) {
-    if (tile.fert > 0) {
+    if (tile.fertileSite) {
       ctx.save();
-      ctx.globalAlpha = 0.09 + tile.fert * 0.05;
-      ctx.fillStyle = tile.crater ? '#ff8a4c' : '#b7ff74';
+      ctx.globalAlpha = 0.18 + 0.05 * Math.sin(t * 2 + seed);
+      ctx.fillStyle = '#b7ff74';
       ctx.fillRect(r.x, r.y, r.s, r.s);
       ctx.restore();
     }
@@ -511,7 +479,7 @@ CF.render = (function () {
   }
 
   function drawTileDeco(r, tile, seed) {
-    if (tile.owner === 0 && tile.fert >= 3) {
+    if (tile.fertileSite) {
       drawAnchoredImage(T.image('goldMine'), r.x + r.s * 0.02, r.y - r.s * 0.18, r.s * 0.95, r.s * 0.8);
       return;
     }
@@ -528,6 +496,19 @@ CF.render = (function () {
   }
 
   function drawTileOverlay(r, tile) {
+    if (tile.fertileSite) {
+      ctx.save();
+      var fx = r.x + r.s * 0.78, fy = r.y + r.s * 0.22, fr = Math.max(5, r.s * 0.13);
+      ctx.translate(fx, fy);
+      ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = 'rgba(28,45,20,0.9)';
+      ctx.strokeStyle = '#c8ff86';
+      ctx.lineWidth = Math.max(1.3, r.s * 0.035);
+      ctx.fillRect(-fr, -fr, fr * 2, fr * 2);
+      ctx.strokeRect(-fr, -fr, fr * 2, fr * 2);
+      ctx.restore();
+    }
+
     if (tile.relay) {
       ctx.save();
       var cx = r.x + r.s * 0.5, cy = r.y + r.s * 0.72, rr = r.s * 0.16;
@@ -656,48 +637,6 @@ CF.render = (function () {
     }
   }
 
-  function drawRifts(now) {
-    for (var k = rifts.length - 1; k >= 0; k--) {
-      var rf = rifts[k];
-      var age = (now - rf.born) / 1400;
-      if (age >= 1) { rifts.splice(k, 1); continue; }
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = 1 - age;
-      ctx.strokeStyle = '#ff7a48';
-      ctx.shadowColor = '#ff7a48';
-      ctx.shadowBlur = 18;
-      ctx.lineWidth = 3 + (1 - age) * 5;
-      if (rf.region) {
-        var minX = state.W, minY = state.H, maxX = -1, maxY = -1;
-        for (var i = 0; i < state.tiles.length; i++) {
-          if (!EV.inRegion(state, i, rf.region)) continue;
-          var tx = i % state.W, ty = (i / state.W) | 0;
-          minX = Math.min(minX, tx); minY = Math.min(minY, ty);
-          maxX = Math.max(maxX, tx); maxY = Math.max(maxY, ty);
-        }
-        if (maxX >= minX && maxY >= minY) {
-          ctx.beginPath();
-          ctx.rect(geom.ox + minX * geom.ts, geom.oy + minY * geom.ts,
-                   (maxX - minX + 1) * geom.ts, (maxY - minY + 1) * geom.ts);
-          ctx.clip();
-        }
-      }
-      ctx.beginPath();
-      if (rf.dir === 'v') {
-        var x = geom.ox + (rf.line + 0.5) * geom.ts;
-        ctx.moveTo(x, geom.oy);
-        ctx.lineTo(x, geom.oy + state.H * geom.ts);
-      } else {
-        var y = geom.oy + (rf.line + 0.5) * geom.ts;
-        ctx.moveTo(geom.ox, y);
-        ctx.lineTo(geom.ox + state.W * geom.ts, y);
-      }
-      ctx.stroke();
-      ctx.restore();
-    }
-  }
-
   function drawBeacon(t) {
     var i = state.beacon;
     if (i == null || !state.tiles[i]) return;
@@ -751,13 +690,35 @@ CF.render = (function () {
     ctx.restore();
   }
 
+  // The pending event is already materialised by trusted code. Highlight the
+  // exact affected squares rather than redrawing a looser narrative region.
+  function drawPendingWarning(t) {
+    var pending = state.pending;
+    if (!pending) return;
+    var affected = Array.isArray(pending.affected) ? pending.affected : [];
+    if (!affected.length) return;
+    var pulse = 0.45 + 0.18 * Math.sin(t * 4.2);
+    ctx.save();
+    affected.forEach(function (index) {
+      if (!state.tiles[index]) return;
+      var r = tileRect(index);
+      ctx.fillStyle = 'rgba(255,101,67,' + (pulse * 0.22) + ')';
+      ctx.fillRect(r.x + 2, r.y + 2, r.s - 4, r.s - 4);
+      ctx.strokeStyle = 'rgba(255,218,124,' + (0.72 + pulse * 0.2) + ')';
+      ctx.lineWidth = Math.max(1.5, r.s * 0.05);
+      ctx.setLineDash([Math.max(3, r.s * 0.14), Math.max(2, r.s * 0.08)]);
+      ctx.strokeRect(r.x + 3, r.y + 3, r.s - 6, r.s - 6);
+    });
+    ctx.restore();
+  }
+
   function drawLegalTargets(t) {
     var pulse = 0.55 + Math.sin(t * 3.2) * 0.18;
     legalTargets.forEach(function (target) {
       var index = typeof target === 'number' ? target : target.i;
       var special = typeof target === 'object' && target.special;
       var r = tileRect(index);
-      var color = legalType === 'raid' ? '#ff7159' : legalType === 'fortify' ? '#79bdf7' : sideColor(1);
+      var color = legalType === 'raid' ? '#ff7159' : legalType === 'guard' ? '#79bdf7' : sideColor(1);
       if (special) color = '#ffe487';
       ctx.save();
       ctx.globalAlpha = pulse;
@@ -765,7 +726,7 @@ CF.render = (function () {
       ctx.shadowColor = color;
       ctx.shadowBlur = special ? 16 : 9;
       ctx.lineWidth = special ? 3 : 1.8;
-      if (legalType === 'fortify') {
+      if (legalType === 'guard') {
         ctx.beginPath();
         ctx.arc(r.x + r.s / 2, r.y + r.s / 2, r.s * .42, 0, Math.PI * 2);
         ctx.stroke();
@@ -792,7 +753,7 @@ CF.render = (function () {
         ctx.shadowColor = sideColor(1);
         ctx.shadowBlur = 10;
         ctx.strokeRect(r.x + 3, r.y + 3, ts - 6, ts - 6);
-      } else if (o.type === 'fortify') {
+      } else if (o.type === 'guard') {
         ctx.strokeStyle = '#79bdf7';
         ctx.shadowColor = '#79bdf7';
         ctx.shadowBlur = 10;
@@ -809,6 +770,16 @@ CF.render = (function () {
       }
       var pointer = T.image('pointer');
       if (pointer) ctx.drawImage(pointer, r.x + ts * 0.58, r.y - ts * 0.18, ts * 0.44, ts * 0.44);
+      if (o.boosted) {
+        ctx.save();
+        ctx.translate(r.x + ts * 0.78, r.y + ts * 0.22);
+        ctx.rotate(Math.PI / 4);
+        ctx.fillStyle = '#ffe487';
+        ctx.shadowColor = '#ffe487';
+        ctx.shadowBlur = 12;
+        ctx.fillRect(-ts * 0.09, -ts * 0.09, ts * 0.18, ts * 0.18);
+        ctx.restore();
+      }
       ctx.restore();
     });
   }
@@ -888,25 +859,6 @@ CF.render = (function () {
     }
     ctx.restore();
     if (particles.length > 1400) particles.splice(0, particles.length - 1400);
-  }
-
-  function drawWeather(t) {
-    if (state.mods.ashfall > 0 && Math.random() < 0.65) ashFleck();
-    if (state.mods.storm > 0 && Math.random() < 0.4) ashFleck('#7fc0ff');
-
-    if (state.mods.ashfall > 0) {
-      ctx.save();
-      ctx.fillStyle = 'rgba(58,42,24,0.18)';
-      ctx.fillRect(0, 0, geom.w, geom.h);
-      ctx.restore();
-    }
-    if (state.mods.rockCooled > 0) {
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = 'rgba(140,190,225,' + (0.03 + 0.02 * Math.sin(t * 1.4)) + ')';
-      ctx.fillRect(0, 0, geom.w, geom.h);
-      ctx.restore();
-    }
   }
 
   function drawAnchoredImage(img, x, y, w, h) {

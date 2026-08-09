@@ -105,7 +105,7 @@ CF.intro = (function () {
 
     // the border between the two peoples grinds back and forth: neither
     // of them is winning, which is exactly the problem
-    var sceneDrive = scene === 4 ? 1.55 : scene === 3 ? 1.25 : 1;
+    var sceneDrive = scene === 3 ? 1.55 : scene === 2 ? 1.25 : 1;
     var push = (Math.sin(t * 0.42) * 0.30 + Math.sin(t * 0.17 + 1.3) * 0.16) * sceneDrive;
 
     // an eruption every few seconds, so the ring never looks settled
@@ -417,12 +417,12 @@ CF.intro = (function () {
   }
 
   function setScene(next) {
-    next = Math.max(0, Math.min(5, Number(next) || 0));
+    next = Math.max(0, Math.min(3, Number(next) || 0));
     if (next === scene) return;
     scene = next;
     // The final lesson is about Cinder. Give that page an immediate, purely
     // visual breath instead of making the player wait for the ambient cycle.
-    if (scene === 5) {
+    if (scene === 3) {
       erupt = sceneTime;
       nextErupt = sceneTime + 8;
     }

@@ -55,7 +55,7 @@ async function main() {
         const nav = document.querySelector('.intro-nav');
         const next = document.getElementById('intro-next');
         const pageChecks = [];
-        for (let page = 0; page < 6; page++) {
+        for (let page = 0; page < 4; page++) {
           const active = document.querySelector('.slide.active');
           const rect = nav.getBoundingClientRect();
           pageChecks.push({
@@ -65,7 +65,7 @@ async function main() {
             nextVisible: next.getBoundingClientRect().bottom <= innerHeight,
             animatedVisual: page === 0 || !!active.querySelector('.lesson-visual')
           });
-          if (page < 5) { next.click(); await sleep(30); }
+          if (page < 3) { next.click(); await sleep(30); }
         }
         const tutorial = {
           slides: document.querySelectorAll('.slide').length,
@@ -118,6 +118,22 @@ async function main() {
         for (let attempt = 0; attempt < 55 && CF.game.interactionLocked; attempt++) await sleep(100);
         if (CF.game.interactionLocked) throw new Error('Doctrine fallback did not unlock');
 
+        document.querySelector('[data-tool="fortify"]').click();
+        const fortifyTargets = [];
+        for (let i = 0; i < CF.game.state.tiles.length && fortifyTargets.length < 2; i++) {
+          if (CF.engine.canFortify(CF.game.state, 1, i) != null) fortifyTargets.push(i);
+        }
+        if (fortifyTargets.length < 2) throw new Error('No pair of commands available for wait-phase smoke');
+        fortifyTargets.forEach((index) => {
+          const rect = CF.render.tileRect(index);
+          const map = document.getElementById('map');
+          const mapBox = map.getBoundingClientRect();
+          map.dispatchEvent(new MouseEvent('click', {
+            bubbles: true,
+            clientX: mapBox.left + (rect.x + rect.s / 2) * mapBox.width / map.clientWidth,
+            clientY: mapBox.top + (rect.y + rect.s / 2) * mapBox.height / map.clientHeight
+          }));
+        });
         CF.game.state.turn = 3;
         document.getElementById('btn-end').click();
         await sleep(30);
@@ -184,7 +200,7 @@ async function main() {
       returnByValue: true
     });
     value.compactLandscape = compact.result.value;
-    const tutorialOk = value.tutorial.slides === 6 && value.tutorial.progress === '6 OF 6' &&
+    const tutorialOk = value.tutorial.slides === 4 && value.tutorial.progress === '4 OF 4' &&
       value.tutorial.dotsAreButtons && value.tutorial.pages.every((page) =>
         page.active === page.page && page.navVisible && page.nextVisible && page.animatedVisual);
     const doctrineOk = value.doctrineOverlay.thinking === 'doctrine' && value.doctrineOverlay.visible &&
