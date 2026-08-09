@@ -31,6 +31,7 @@ class StaticAssetTests(unittest.TestCase):
         cls.intro = (ROOT / "js/intro.js").read_text(encoding="utf-8")
         cls.css = (ROOT / "css/style.css").read_text(encoding="utf-8")
         cls.engine = (ROOT / "js/engine.js").read_text(encoding="utf-8")
+        cls.vision = (ROOT / "vision.html").read_text(encoding="utf-8")
         cls.mapgen = (ROOT / "js/mapgen.js").read_text(encoding="utf-8")
         cls.saltkin_prompt = (ROOT / "ai/prompts/saltkin.md").read_text(encoding="utf-8")
         cls.parser = IndexParser()
@@ -136,6 +137,22 @@ class StaticAssetTests(unittest.TestCase):
         self.assertIn("settlement-rise", self.css)
         self.assertIn("settlement-side-left", self.css)
         self.assertIn("settlement-ember", self.css)
+
+    def test_vision_deck_is_an_eleven_slide_pdf_ready_presentation(self):
+        self.assertEqual(self.vision.count('class="slide"'), 10)
+        self.assertEqual(self.vision.count('class="slide active"'), 1)
+        slide_count = self.vision.count('class="slide"') + self.vision.count('class="slide active"')
+        self.assertLessEqual(slide_count, 15)
+        self.assertIn("CINDERFALL Lite · Judge Vision Deck", self.vision)
+        self.assertNotRegex(self.vision, r"[\u4e00-\u9fff]")
+        for criterion in ("Problem–Solution Fit · 40%", "Build Quality · 30%", "Originality · 30%"):
+            self.assertIn(criterion, self.vision)
+        for required in ("Target Users and Stakeholders", "Expected Impact", "Technical Decisions"):
+            self.assertIn(required, self.vision)
+        self.assertIn("@media print", self.vision)
+        self.assertIn("ArrowRight", self.vision)
+        self.assertIn("requestFullscreen", self.vision)
+        self.assertIn("AI IS CONSEQUENTIAL, NOT AUTHORITATIVE", self.vision)
 
     def test_bounded_ai_choices_are_explained_and_previewed_exactly(self):
         profile = (ROOT / "js/profile.js").read_text(encoding="utf-8")

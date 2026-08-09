@@ -16,7 +16,7 @@ from ai_service import AIService, AIServiceError
 
 ROOT = Path(__file__).resolve().parent
 MAX_BODY = 512 * 1024
-PUBLIC_FILES = {"/", "/index.html"}
+PUBLIC_FILES = {"/", "/index.html", "/vision.html"}
 PUBLIC_PREFIXES = ("/css/", "/js/", "/assets/")
 
 

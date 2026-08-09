@@ -212,6 +212,9 @@ class HTTPBoundaryTests(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as caught:
             urllib.request.urlopen(self.base + "/.env")
         self.assertEqual(caught.exception.code, 404)
+        with urllib.request.urlopen(self.base + "/vision.html") as response:
+            self.assertEqual(response.status, 200)
+            self.assertIn(b"Vision Proposal", response.read())
         with self.assertRaises(urllib.error.HTTPError) as traversal:
             urllib.request.urlopen(self.base + "/js/%2e%2e/server.py")
         self.assertEqual(traversal.exception.code, 404)

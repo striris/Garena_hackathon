@@ -11,6 +11,7 @@ AI decisions instead of decoding combat arithmetic.
 ## Judge quick links
 
 - [3-minute judging guide](JUDGES_GUIDE.md)
+- [Visual vision deck](vision.html)
 - [Current game rules](RULES_REDESIGN_SPEC.md)
 - [AI authority and data flow](AI_ARCHITECTURE.md)
 - [Third-party and data disclosure](THIRD_PARTY.md)
